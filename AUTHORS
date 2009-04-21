@@ -1,0 +1,5 @@
+Lzlib was written by Antonio Diaz Diaz.
+
+Lzlib implements a simplified version of the LZMA algorithm. The
+original LZMA algorithm was designed by Igor Pavlov.
+
