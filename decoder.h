@@ -40,6 +40,7 @@ public:
   bool at_stream_end() const throw() { return at_stream_end_; }
   void finish() throw() { at_stream_end_ = true; }
   bool finished() const throw() { return at_stream_end_ && !used_bytes(); }
+  void purge() throw() { at_stream_end_ = true; Circular_buffer::reset(); }
 
   int write_data( uint8_t * const in_buffer, const int in_size ) throw()
     {

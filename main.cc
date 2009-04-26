@@ -592,19 +592,25 @@ int decompress( const int inhandle, const Pretty_print & pp,
   const int in_buffer_size = 65536, out_buffer_size = 8 * in_buffer_size;
   uint8_t in_buffer[in_buffer_size], out_buffer[out_buffer_size];
   int in_pos = 0, in_stream_pos = 0;
+  bool finished = false;
   while( true )
     {
-    if( in_stream_pos == 0 )
-      {
-      in_stream_pos = readblock( inhandle, (char *)in_buffer, in_buffer_size );
-      if( in_stream_pos == 0 ) LZ_decompress_finish( decoder );
-      }
     int in_size = 0;
-    if( in_pos < in_stream_pos )
+    if( !finished )
       {
-      in_size = LZ_decompress_write( decoder, in_buffer + in_pos, in_stream_pos - in_pos );
-      in_pos += in_size;
-      if( in_pos >= in_stream_pos ) { in_stream_pos = 0; in_pos = 0; }
+      if( in_stream_pos == 0 )
+        in_stream_pos = readblock( inhandle, (char *)in_buffer, in_buffer_size );
+      if( in_pos < in_stream_pos )
+        {
+        in_size = LZ_decompress_write( decoder, in_buffer + in_pos, in_stream_pos - in_pos );
+        in_pos += in_size;
+        }
+      if( in_pos >= in_stream_pos )
+        {
+        if( in_stream_pos < in_buffer_size )
+          { finished = true; LZ_decompress_finish( decoder ); }
+        in_stream_pos = 0; in_pos = 0;
+        }
       }
     int out_size = LZ_decompress_read( decoder, out_buffer, out_buffer_size );
 //    std::fprintf( stderr, "%5d in_size, %6d out_size.\n", in_size, out_size );
@@ -613,17 +619,10 @@ int decompress( const int inhandle, const Pretty_print & pp,
       const LZ_errno lz_errno = LZ_decompress_errno( decoder );
       if( lz_errno == LZ_header_error )
         {
-        if( LZ_decompress_total_out_size( decoder ) == 0 )
-          {
-          if( LZ_decompress_finished( decoder ) )
-            { pp( "error reading member header" ); return 1; }
-          if( verbosity >= 0 )
-            { pp();
-              std::fprintf( stderr, "bad magic number (file not created by %s).\n",
-                            program_name ); }
-          return 2;
-          }
-        else break;
+        if( LZ_decompress_total_out_size( decoder ) > 0 )  // trailing garbage
+          break;
+        pp( "error reading member header" );
+        return 1;
         }
       if( lz_errno == LZ_mem_error )
         {
@@ -646,8 +645,9 @@ int decompress( const int inhandle, const Pretty_print & pp,
       if( wr != out_size )
         { pp(); show_error( "write error", errno ); return 1; }
       }
-    else if( LZ_decompress_finished( decoder ) == 1 ) break;
-    else if( in_size == 0 ) internal_error( "library error" );
+    if( LZ_decompress_finished( decoder ) == 1 ) break;
+    if( finished && in_size == 0 && out_size == 0 )
+      internal_error( "library error" );
     }
   if( verbosity >= 1 )
     { if( testing ) std::fprintf( stderr, "ok\n" );

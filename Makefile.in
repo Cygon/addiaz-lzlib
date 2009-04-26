@@ -87,8 +87,8 @@ dist :
 	  $(DISTNAME)/configure \
 	  $(DISTNAME)/doc/$(pkgname).info \
 	  $(DISTNAME)/doc/$(pkgname).texinfo \
-	  $(DISTNAME)/testsuite/*.lz \
-	  $(DISTNAME)/testsuite/*.sh \
+	  $(DISTNAME)/testsuite/COPYING.lz \
+	  $(DISTNAME)/testsuite/check.sh \
 	  $(DISTNAME)/*.h \
 	  $(DISTNAME)/*.cc
 	rm -f $(DISTNAME)

@@ -62,9 +62,9 @@ struct Encoder
 bool verify_encoder( void * const encoder )
   {
   if( !encoder ) return false;
-  if( !((Encoder *)encoder)->matchfinder ||
-      !((Encoder *)encoder)->lz_encoder )
-    { ((Encoder *)encoder)->lz_errno = LZ_bad_argument; return false; }
+  Encoder & e = *(Encoder *)encoder;
+  if( !e.matchfinder || !e.lz_encoder )
+    { e.lz_errno = LZ_bad_argument; return false; }
   return true;
   }
 
@@ -114,25 +114,27 @@ void * LZ_compress_open( const int dictionary_size, const int match_len_limit,
 
   Encoder * encoder = new( std::nothrow ) Encoder( header );
   if( !encoder ) return 0;
-  if( error ) ((Encoder *)encoder)->lz_errno = LZ_bad_argument;
+  Encoder & e = *encoder;
+  if( error ) e.lz_errno = LZ_bad_argument;
   else
     {
     try {
-      encoder->matchfinder =
-        new Matchfinder( header.dictionary_size(), match_len_limit );
+      e.matchfinder = new Matchfinder( header.dictionary_size(), match_len_limit );
       }
-    catch( std::bad_alloc ) { encoder->matchfinder = 0; }
-    if( encoder->matchfinder )
+    catch( std::bad_alloc ) { e.matchfinder = 0; }
+    if( e.matchfinder )
       {
       try {
-        encoder->lz_encoder =
-          new LZ_encoder( *encoder->matchfinder, header, member_size );
+        e.lz_encoder = new LZ_encoder( *e.matchfinder, header, member_size );
         }
       catch( std::bad_alloc )
-        { delete encoder->matchfinder;  encoder->matchfinder = 0;
-          encoder->lz_encoder = 0; }
+        {
+        delete e.matchfinder;
+        e.matchfinder = 0;
+        e.lz_encoder = 0;
+        }
       }
-    if( !encoder->lz_encoder ) ((Encoder *)encoder)->lz_errno = LZ_mem_error;
+    if( !e.lz_encoder ) e.lz_errno = LZ_mem_error;
     }
   return encoder;
   }
@@ -141,10 +143,9 @@ void * LZ_compress_open( const int dictionary_size, const int match_len_limit,
 int LZ_compress_close( void * const encoder )
   {
   if( !encoder ) return -1;
-  if( ((Encoder *)encoder)->lz_encoder )
-    delete ((Encoder *)encoder)->lz_encoder;
-  if( ((Encoder *)encoder)->matchfinder )
-    delete ((Encoder *)encoder)->matchfinder;
+  Encoder & e = *(Encoder *)encoder;
+  if( e.lz_encoder ) delete e.lz_encoder;
+  if( e.matchfinder ) delete e.matchfinder;
   delete (Encoder *)encoder;
   return 0;
   }
@@ -170,25 +171,21 @@ int LZ_compress_restart_member( void * const encoder,
                                 const long long member_size )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  if( !((Encoder *)encoder)->lz_encoder->member_finished() )
-    { ((Encoder *)encoder)->lz_errno = LZ_sequence_error; return -1; }
+  Encoder & e = *(Encoder *)encoder;
+  if( !e.lz_encoder->member_finished() )
+    { e.lz_errno = LZ_sequence_error; return -1; }
 
-  ((Encoder *)encoder)->partial_in_size +=
-    ((Encoder *)encoder)->matchfinder->data_position();
-  ((Encoder *)encoder)->partial_out_size +=
-    ((Encoder *)encoder)->lz_encoder->member_position();
-  if( !((Encoder *)encoder)->matchfinder->reset() )
-    { ((Encoder *)encoder)->lz_errno = LZ_library_error; return -1; }
+  e.partial_in_size += e.matchfinder->data_position();
+  e.partial_out_size += e.lz_encoder->member_position();
+  if( !e.matchfinder->reset() )
+    { e.lz_errno = LZ_library_error; return -1; }
 
-  delete ((Encoder *)encoder)->lz_encoder;
+  delete e.lz_encoder;
   try {
-    ((Encoder *)encoder)->lz_encoder =
-      new LZ_encoder( *((Encoder *)encoder)->matchfinder,
-                      ((Encoder *)encoder)->member_header, member_size );
+    e.lz_encoder = new LZ_encoder( *e.matchfinder, e.member_header, member_size );
     }
   catch( std::bad_alloc )
-    { ((Encoder *)encoder)->lz_encoder = 0;
-      ((Encoder *)encoder)->lz_errno = LZ_mem_error; return -1; }
+    { e.lz_encoder = 0; e.lz_errno = LZ_mem_error; return -1; }
   return 0;
   }
 
@@ -197,9 +194,10 @@ int LZ_compress_read( void * const encoder, uint8_t * const buffer,
                       const int size )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  if( !((Encoder *)encoder)->lz_encoder->encode_member() )
-    { ((Encoder *)encoder)->lz_errno = LZ_library_error; return -1; }
-  return ((Encoder *)encoder)->lz_encoder->read_data( buffer, size );
+  Encoder & e = *(Encoder *)encoder;
+  if( !e.lz_encoder->encode_member() )
+    { e.lz_errno = LZ_library_error; return -1; }
+  return e.lz_encoder->read_data( buffer, size );
   }
 
 
@@ -221,7 +219,8 @@ enum LZ_errno LZ_compress_errno( void * const encoder )
 int LZ_compress_finished( void * const encoder )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  return ((Encoder *)encoder)->matchfinder->finished();
+  Encoder & e = *(Encoder *)encoder;
+  return ( e.matchfinder->finished() && e.lz_encoder->member_finished() );
   }
 
 
@@ -249,16 +248,16 @@ long long LZ_compress_member_position( void * const encoder )
 long long LZ_compress_total_in_size( void * const encoder )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  return ((Encoder *)encoder)->partial_in_size +
-         ((Encoder *)encoder)->matchfinder->data_position();
+  Encoder & e = *(Encoder *)encoder;
+  return e.partial_in_size + e.matchfinder->data_position();
   }
 
 
 long long LZ_compress_total_out_size( void * const encoder )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  return ((Encoder *)encoder)->partial_out_size +
-         ((Encoder *)encoder)->lz_encoder->member_position();
+  Encoder & e = *(Encoder *)encoder;
+  return e.partial_out_size + e.lz_encoder->member_position();
   }
 
 
@@ -269,7 +268,7 @@ void * LZ_decompress_open()
 
   try { decoder->ibuf = new Input_buffer(); }
   catch( std::bad_alloc )
-    { decoder->ibuf = 0; ((Decoder *)decoder)->lz_errno = LZ_mem_error; }
+    { decoder->ibuf = 0; decoder->lz_errno = LZ_mem_error; }
   return decoder;
   }
 
@@ -277,10 +276,9 @@ void * LZ_decompress_open()
 int LZ_decompress_close( void * const decoder )
   {
   if( !decoder ) return -1;
-  if( ((Decoder *)decoder)->lz_decoder )
-    delete ((Decoder *)decoder)->lz_decoder;
-  if( ((Decoder *)decoder)->ibuf )
-    delete ((Decoder *)decoder)->ibuf;
+  Decoder & d = *(Decoder *)decoder;
+  if( d.lz_decoder ) delete d.lz_decoder;
+  if( d.ibuf ) delete d.ibuf;
   delete (Decoder *)decoder;
   return 0;
   }
@@ -298,49 +296,51 @@ int LZ_decompress_read( void * const decoder, uint8_t * const buffer,
                         const int size )
   {
   if( !verify_decoder( decoder ) ) return -1;
-  if( !((Decoder *)decoder)->lz_decoder )
+  Decoder & d = *(Decoder *)decoder;
+  if( d.lz_decoder && d.lz_decoder->member_finished() )
     {
-    if( ((Decoder *)decoder)->ibuf->used_bytes() <
-        5 + (int)sizeof( File_header ) )
+    d.partial_in_size += d.lz_decoder->member_position();
+    d.partial_out_size += d.lz_decoder->data_position();
+    delete d.lz_decoder;
+    d.lz_decoder = 0;
+    }
+  if( !d.lz_decoder )
+    {
+    if( d.ibuf->used_bytes() < 5 + (int)sizeof( File_header ) )
       {
-      if( ((Decoder *)decoder)->ibuf->at_stream_end() &&
-          !((Decoder *)decoder)->ibuf->finished() )	// trailing garbage
-        { ((Decoder *)decoder)->lz_errno = LZ_header_error; return -1; }
-      else return 0;
+      if( !d.ibuf->at_stream_end() || d.ibuf->finished() ) return 0;
+      d.ibuf->purge();
+      d.lz_errno = LZ_header_error;
+      return -1;
       }
     File_header header;
     for( unsigned int i = 0; i < sizeof header; ++i )
-      ((uint8_t *)&header)[i] = ((Decoder *)decoder)->ibuf->get_byte();
+      ((uint8_t *)&header)[i] = d.ibuf->get_byte();
     if( !header.verify_magic() || !header.verify_version() ||
         header.dictionary_size() < min_dictionary_size ||
         header.dictionary_size() > max_dictionary_size )
-      { ((Decoder *)decoder)->lz_errno = LZ_header_error; return -1; }
-    try {
-      ((Decoder *)decoder)->lz_decoder =
-        new LZ_decoder( header, *((Decoder *)decoder)->ibuf );
+      {
+      d.ibuf->purge();
+      d.lz_errno = LZ_header_error;
+      return -1;
       }
+    try { d.lz_decoder = new LZ_decoder( header, *d.ibuf ); }
     catch( std::bad_alloc )
-      { ((Decoder *)decoder)->lz_decoder = 0;
-        ((Decoder *)decoder)->lz_errno = LZ_mem_error; return -1; }
+      {
+      d.ibuf->purge();
+      d.lz_decoder = 0;
+      d.lz_errno = LZ_mem_error;
+      return -1;
+      }
     }
-  const int result = ((Decoder *)decoder)->lz_decoder->decode_member();
+  const int result = d.lz_decoder->decode_member();
   if( result != 0 )
     {
-    if( result == 2 ) ((Decoder *)decoder)->lz_errno = LZ_unexpected_eof;
-    else ((Decoder *)decoder)->lz_errno = LZ_data_error;
+    if( result == 2 ) d.lz_errno = LZ_unexpected_eof;
+    else d.lz_errno = LZ_data_error;
     return -1;
     }
-  const int out_size = ((Decoder *)decoder)->lz_decoder->read_data( buffer, size );
-  if( ((Decoder *)decoder)->lz_decoder->member_finished() )
-    {
-    ((Decoder *)decoder)->partial_in_size +=
-      ((Decoder *)decoder)->lz_decoder->member_position();
-    ((Decoder *)decoder)->partial_out_size +=
-      ((Decoder *)decoder)->lz_decoder->data_position();
-    delete ((Decoder *)decoder)->lz_decoder;
-    ((Decoder *)decoder)->lz_decoder = 0;
-    }
-  return out_size;
+  return d.lz_decoder->read_data( buffer, size );
   }
 
 
@@ -362,7 +362,9 @@ enum LZ_errno LZ_decompress_errno( void * const decoder )
 int LZ_decompress_finished( void * const decoder )
   {
   if( !verify_decoder( decoder ) ) return -1;
-  return ((Decoder *)decoder)->ibuf->finished();
+  Decoder & d = *(Decoder *)decoder;
+  return ( d.ibuf->finished() &&
+           ( !d.lz_decoder || d.lz_decoder->member_finished() ) );
   }
 
 
@@ -387,16 +389,18 @@ long long LZ_decompress_member_position( void * const decoder )
 long long LZ_decompress_total_in_size( void * const decoder )
   {
   if( !verify_decoder( decoder ) ) return -1;
-  return ((Decoder *)decoder)->partial_in_size +
-         ((Decoder *)decoder)->lz_decoder ?
-         ((Decoder *)decoder)->lz_decoder->member_position() : 0;
+  Decoder & d = *(Decoder *)decoder;
+  if( d.lz_decoder )
+    return d.partial_in_size + d.lz_decoder->member_position();
+  return d.partial_in_size;
   }
 
 
 long long LZ_decompress_total_out_size( void * const decoder )
   {
   if( !verify_decoder( decoder ) ) return -1;
-  return ((Decoder *)decoder)->partial_out_size +
-         ((Decoder *)decoder)->lz_decoder ?
-         ((Decoder *)decoder)->lz_decoder->data_position() : 0;
+  Decoder & d = *(Decoder *)decoder;
+  if( d.lz_decoder )
+    return d.partial_out_size + d.lz_decoder->data_position();
+  return d.partial_out_size;
   }

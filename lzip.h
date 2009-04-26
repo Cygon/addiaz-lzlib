@@ -238,16 +238,18 @@ class Circular_buffer
 protected:
   const int buffer_size;
   uint8_t * const buffer;
-  int put;
   int get;
+  int put;
+
+  void reset() throw() { get = 0; put = 0; }
 
 public:
   Circular_buffer( const int buf_size )
     :
     buffer_size( buf_size + 1 ),
     buffer( new uint8_t[buffer_size] ),
-    put( 0 ),
-    get( 0 ) {}
+    get( 0 ),
+    put( 0 ) {}
 
   ~Circular_buffer() { delete[] buffer; }
 

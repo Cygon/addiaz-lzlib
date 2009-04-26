@@ -1,3 +1,7 @@
-Changes in version 0.1:
+Changes in version 0.2:
 
-Initial release.
+A segfault that occurred when decompressing a file with trailing garbage
+has been fixed.
+
+A false positive returned by the functions LZ_compress_finished and
+LZ_decompress_finished has been fixed.
