@@ -1,3 +1,8 @@
+2009-05-03  Antonio Diaz  <ant_diaz@teleline.es>
+
+	* Version 0.3 released.
+	* Lzilib is now built as a shared library (in addition to static).
+
 2009-04-26  Antonio Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.2 released.

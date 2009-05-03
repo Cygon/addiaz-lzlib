@@ -1,7 +1,3 @@
-Changes in version 0.2:
+Changes in version 0.3:
 
-A segfault that occurred when decompressing a file with trailing garbage
-has been fixed.
-
-A false positive returned by the functions LZ_compress_finished and
-LZ_decompress_finished has been fixed.
+Lzilib is now built as a shared library (in addition to static).

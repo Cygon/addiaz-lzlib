@@ -5,15 +5,17 @@
 # This configure script is free software: you have unlimited permission
 # to copy, distribute and modify it.
 #
-# Date of this version: 2009-04-26
+# Date of this version: 2009-05-03
 
 invocation_name=$0
 args=
 no_create=
 pkgname=lzlib
-pkgversion=0.2
+pkgversion=0.3
+soversion=0
 progname=minilzip
-libname=liblz.a
+progname_shared=${progname}_shared
+libname=liblz
 srctrigger=${pkgname}.h
 
 # clear some things potentially inherited from environment.
@@ -69,6 +71,7 @@ while [ x"$1" != x ] ; do
 		echo "  --libdir=DIR          object code libraries [${libdir}]"
 		echo "  --mandir=DIR          man pages directory [${mandir}]"
 		echo "  --sysconfdir=DIR      read-only single-machine data directory [${sysconfdir}]"
+		echo "  --disable-shared      do not build a shared library [enable]"
 		echo "  CC=COMPILER           C compiler to use [gcc]"
 		echo "  CXX=COMPILER          C++ compiler to use [g++]"
 		echo "  CPPFLAGS=OPTIONS      command line options for the preprocessor [${CPPFLAGS}]"
@@ -102,6 +105,8 @@ while [ x"$1" != x ] ; do
 		sysconfdir=`echo ${optarg} | sed -e 's,/$,,'` ;;
 	--no-create | --no-c*)
 		no_create=yes ;;
+	--disable-shared | --disable-s*)
+		progname_shared= ;;
 
 	CC=*)       CC=${optarg} ;;
 	CXX=*)      CXX=${optarg} ;;
@@ -206,7 +211,9 @@ cat > Makefile << EOF
 
 pkgname = ${pkgname}
 pkgversion = ${pkgversion}
+soversion = ${soversion}
 progname = ${progname}
+progname_shared = ${progname_shared}
 libname = ${libname}
 VPATH = ${srcdir}
 prefix = ${prefix}

@@ -30,7 +30,8 @@ the main archive.
 4. Optionally, type `make check' to run the tests that come with lzlib.
 
 5. Type `make install' to install the library and any data files and
-   documentation.
+   documentation. (You might have to run ldconfig also).
+
 
 
 Another way

@@ -12,7 +12,7 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib
 *****
 
-This manual is for Lzlib (version 0.2, 26 April 2009).
+This manual is for Lzlib (version 0.3, 3 May 2009).
 
 * Menu:
 
@@ -474,14 +474,14 @@ Concept Index
 
 Tag Table:
 Node: Top219
-Node: Introduction971
-Node: Library Version2431
-Node: Compression Functions3088
-Node: Decompression Functions8181
-Node: Error Codes11619
-Node: Data Format13554
-Node: Examples15521
-Node: Problems16943
-Node: Concept Index17513
+Node: Introduction968
+Node: Library Version2428
+Node: Compression Functions3085
+Node: Decompression Functions8178
+Node: Error Codes11616
+Node: Data Format13551
+Node: Examples15518
+Node: Problems16940
+Node: Concept Index17510
 
 End Tag Table
