@@ -12,12 +12,13 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib
 *****
 
-This manual is for Lzlib (version 0.3, 3 May 2009).
+This manual is for Lzlib (version 0.4, 3 June 2009).
 
 * Menu:
 
 * Introduction::		Purpose and features of Lzlib
 * Library Version::		Checking library version
+* Buffering::			Sizes of Lzlib's buffers
 * Compression Functions::	Descriptions of the compression functions
 * Decompression Functions::	Descriptions of the decompression functions
 * Error Codes::			Meaning of codes returned by functions
@@ -38,8 +39,8 @@ File: lzlib.info,  Node: Introduction,  Next: Library Version,  Prev: Top,  Up: 
 1 Introduction
 **************
 
-The lzlib compression library provides in-memory LZMA compression and
-decompression functions, including integrity checking of the
+Lzlib is a data compression library providing in-memory LZMA compression
+and decompression functions, including integrity checking of the
 uncompressed data. The compressed data format used by the library is the
 lzip format.
 
@@ -68,7 +69,7 @@ Igor Pavlov. For a description of the LZMA algorithm, see the Lzip
 manual.
 
 
-File: lzlib.info,  Node: Library Version,  Next: Compression Functions,  Prev: Introduction,  Up: Top
+File: lzlib.info,  Node: Library Version,  Next: Buffering,  Prev: Introduction,  Up: Top
 
 2 Library Version
 *****************
@@ -88,9 +89,37 @@ application.
        error( "bad library version" );
 
 
-File: lzlib.info,  Node: Compression Functions,  Next: Decompression Functions,  Prev: Library Version,  Up: Top
+File: lzlib.info,  Node: Buffering,  Next: Compression Functions,  Prev: Library Version,  Up: Top
 
-3 Compression Functions
+3 Buffering
+***********
+
+Lzlib internal functions need access to a memory chunk at least as large
+as the dictionary size (sliding window). For efficiency reasons, the
+input buffer for compression is twice as large as the dictionary size.
+Finally, for security reasons, lzlib uses two more internal buffers.
+
+   These are the four buffers used by lzlib, and their guaranteed
+minimum sizes:
+
+   * Input compression buffer. Written to by the `LZ_compress_write'
+     function. Its size is two times the dictionary size set with the
+     `LZ_compress_open' function or 128KiB, whichever is larger.
+
+   * Output compression buffer. Read from by the `LZ_compress_read'
+     function. Its size is 64KiB.
+
+   * Input decompression buffer. Written to by the
+     `LZ_decompress_write' function. Its size is 64KiB.
+
+   * Output decompression buffer. Read from by the `LZ_decompress_read'
+     function. Its size is the dictionary size set with the
+     `LZ_decompress_open' function or 64KiB, whichever is larger.
+
+
+File: lzlib.info,  Node: Compression Functions,  Next: Decompression Functions,  Prev: Buffering,  Up: Top
+
+4 Compression Functions
 ***********************
 
 These are the functions used to compress data. In case of error, all of
@@ -123,6 +152,13 @@ verified by calling `LZ_compress_errno' before using it.
      stream, give MEMBER_SIZE a value larger than the amount of data to
      be produced, for example LLONG_MAX.
 
+ -- Function: int LZ_compress_restart_member ( void * const ENCODER,
+          const long long MEMBER_SIZE )
+     Use this function to start a new member, in a multimember data
+     stream.  Call this function only after
+     `LZ_compress_member_finished' indicates that the current member
+     has been fully read (with the `LZ_compress_read' function).
+
  -- Function: int LZ_compress_close ( void * const ENCODER )
      Frees all dynamically allocated data structures for this stream.
      This function discards any unprocessed input and does not flush
@@ -133,17 +169,11 @@ verified by calling `LZ_compress_errno' before using it.
      Use this function to tell `lzlib' that all the data for this stream
      has already been written (with the `LZ_compress_write' function).
 
- -- Function: int LZ_compress_finish_member ( void * const ENCODER )
-     Use this function to tell `lzlib' that all the data for the current
-     member, in a multimember data stream, has already been written
-     (with the `LZ_compress_write' function).
-
- -- Function: int LZ_compress_restart_member ( void * const ENCODER,
-          const long long MEMBER_SIZE )
-     Use this function to start a new member, in a multimember data
-     stream.  Call this function only after
-     `LZ_compress_member_finished' indicates that the current member
-     has been fully read (with the `LZ_compress_read' function).
+ -- Function: int LZ_compress_sync_flush ( void * const ENCODER )
+     Use this function to make available to `LZ_compress_read' all the
+     data already written with the `LZ_compress_write' function.
+     Repeated use of `LZ_compress_sync_flush' may degrade compression
+     ratio, so use it only when needed.
 
  -- Function: int LZ_compress_read ( void * const ENCODER, uint8_t *
           const BUFFER, const int SIZE )
@@ -164,6 +194,14 @@ verified by calling `LZ_compress_errno' before using it.
      The return value is the number of bytes actually written. This
      might be less than SIZE. Note that writing less than SIZE bytes is
      not an error.
+
+ -- Function: int LZ_compress_write_size ( void * const ENCODER )
+     The `LZ_compress_write_size' function returns the maximum number of
+     bytes that can be inmediately written through the
+     `LZ_compress_write' function.
+
+     It is guaranteed that an inmediate call to `LZ_compress_write' will
+     accept a SIZE up to the returned number of bytes.
 
  -- Function: enum LZ_errno LZ_compress_errno ( void * const ENCODER )
      Returns the current error code for ENCODER (*note Error Codes::)
@@ -199,7 +237,7 @@ verified by calling `LZ_compress_errno' before using it.
 
 File: lzlib.info,  Node: Decompression Functions,  Next: Error Codes,  Prev: Compression Functions,  Up: Top
 
-4 Decompression Functions
+5 Decompression Functions
 *************************
 
 These are the functions used to decompress data. In case of error, all
@@ -275,7 +313,7 @@ be verified by calling `LZ_decompress_errno' before using it.
 
 File: lzlib.info,  Node: Error Codes,  Next: Data Format,  Prev: Decompression Functions,  Up: Top
 
-5 Error Codes
+6 Error Codes
 *************
 
 Most library functions return -1 to indicate that they have failed. But
@@ -286,7 +324,7 @@ what kind of error it was, you need to verify the error code by calling
    Library functions do not change the value returned by
 `LZ_(de)compress_errno' when they succeed; thus, the value returned by
 `LZ_(de)compress_errno' after a successful call is not necessarily
-zero, and you should not use `LZ_(de)compress_errno' to determine
+LZ_ok, and you should not use `LZ_(de)compress_errno' to determine
 whether a call failed. If the call failed, then you can examine
 `LZ_(de)compress_errno'.
 
@@ -327,7 +365,7 @@ whether a call failed. If the call failed, then you can examine
 
 File: lzlib.info,  Node: Data Format,  Next: Examples,  Prev: Error Codes,  Up: Top
 
-6 Data Format
+7 Data Format
 *************
 
 In the diagram below, a box like this:
@@ -389,7 +427,7 @@ with no additional information before, between, or after them.
 
 File: lzlib.info,  Node: Examples,  Next: Problems,  Prev: Data Format,  Up: Top
 
-7 A small tutorial with examples
+8 A small tutorial with examples
 ********************************
 
 This chaper shows the order in which the library functions should be
@@ -437,7 +475,7 @@ Example 3: Multimember compression (MEMBER_SIZE < total output).
 
 File: lzlib.info,  Node: Problems,  Next: Concept Index,  Prev: Examples,  Up: Top
 
-8 Reporting Bugs
+9 Reporting Bugs
 ****************
 
 There are probably bugs in Lzlib. There are certainly errors and
@@ -459,6 +497,7 @@ Concept Index
  [index ]
 * Menu:
 
+* buffering:                             Buffering.             (line 6)
 * bugs:                                  Problems.              (line 6)
 * compression functions:                 Compression Functions. (line 6)
 * data format:                           Data Format.           (line 6)
@@ -474,14 +513,15 @@ Concept Index
 
 Tag Table:
 Node: Top219
-Node: Introduction968
-Node: Library Version2428
-Node: Compression Functions3085
-Node: Decompression Functions8178
-Node: Error Codes11616
-Node: Data Format13551
-Node: Examples15518
-Node: Problems16940
-Node: Concept Index17510
+Node: Introduction1010
+Node: Library Version2477
+Node: Buffering3122
+Node: Compression Functions4229
+Node: Decompression Functions9731
+Node: Error Codes13169
+Node: Data Format15105
+Node: Examples17072
+Node: Problems18494
+Node: Concept Index19064
 
 End Tag Table

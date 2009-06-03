@@ -52,6 +52,11 @@
 #define ULLONG_MAX 0xFFFFFFFFFFFFFFFFULL
 #endif
 
+void show_error( const char * msg, const int errcode = 0, const bool help = false ) throw();
+void internal_error( const char * msg );
+int readblock( const int fd, char * buf, const int size ) throw();
+int writeblock( const int fd, const char * buf, const int size ) throw();
+
 
 namespace {
 
@@ -117,7 +122,7 @@ void show_help() throw()
   {
   std::printf( "%s - A test program for the lzlib library.\n", Program_name );
   std::printf( "\nUsage: %s [options] [files]\n", invocation_name );
-  std::printf( "Options:\n" );
+  std::printf( "\nOptions:\n" );
   std::printf( "  -h, --help                 display this help and exit\n" );
   std::printf( "  -V, --version              output version information and exit\n" );
   std::printf( "  -b, --member-size=<n>      set member size limit in bytes\n" );
@@ -125,7 +130,7 @@ void show_help() throw()
   std::printf( "  -d, --decompress           decompress\n" );
   std::printf( "  -f, --force                overwrite existing output files\n" );
   std::printf( "  -k, --keep                 keep (don't delete) input files\n" );
-  std::printf( "  -m, --match-length=<n>     set match length limit in bytes [64]\n" );
+  std::printf( "  -m, --match-length=<n>     set match length limit in bytes [80]\n" );
   std::printf( "  -o, --output=<file>        if reading stdin, place the output into <file>\n" );
   std::printf( "  -q, --quiet                suppress all messages\n" );
   std::printf( "  -s, --dictionary-size=<n>  set dictionary size limit in bytes [8MiB]\n" );
@@ -151,30 +156,6 @@ void show_version() throw()
   std::printf( "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n" );
   std::printf( "This is free software: you are free to change and redistribute it.\n" );
   std::printf( "There is NO WARRANTY, to the extent permitted by law.\n" );
-  }
-
-
-void show_error( const char * msg, const int errcode = 0, const bool help = false ) throw()
-  {
-  if( verbosity >= 0 )
-    {
-    if( msg && msg[0] != 0 )
-      {
-      std::fprintf( stderr, "%s: %s", program_name, msg );
-      if( errcode > 0 ) std::fprintf( stderr, ": %s", std::strerror( errcode ) );
-      std::fprintf( stderr, "\n" );
-      }
-    if( help && invocation_name && invocation_name[0] != 0 )
-      std::fprintf( stderr, "Try `%s --help' for more information.\n", invocation_name );
-    }
-  }
-
-
-void internal_error( const char * msg )
-  {
-  std::string s( "internal error: " ); s += msg;
-  show_error( s.c_str() );
-  std::exit( 3 );
   }
 
 
@@ -451,43 +432,6 @@ bool next_filename()
   }
 
 
-// Returns the number of bytes really read.
-// If (returned value < size) and (errno == 0), means EOF was reached.
-//
-int readblock( const int fd, char * buf, const int size ) throw()
-  {
-  int rest = size;
-  errno = 0;
-  while( rest > 0 )
-    {
-    errno = 0;
-    const int n = read( fd, buf + size - rest, rest );
-    if( n > 0 ) rest -= n;
-    else if( n == 0 ) break;
-    else if( errno != EINTR && errno != EAGAIN ) break;
-    }
-  return ( rest > 0 ) ? size - rest : size;
-  }
-
-
-// Returns the number of bytes really written.
-// If (returned value < size), it is always an error.
-//
-int writeblock( const int fd, const char * buf, const int size ) throw()
-  {
-  int rest = size;
-  errno = 0;
-  while( rest > 0 )
-    {
-    errno = 0;
-    const int n = write( fd, buf + size - rest, rest );
-    if( n > 0 ) rest -= n;
-    else if( errno && errno != EINTR && errno != EAGAIN ) break;
-    }
-  return ( rest > 0 ) ? size - rest : size;
-  }
-
-
 int compress( const long long member_size, const long long volume_size,
               lzma_options encoder_options, const int inhandle,
               const Pretty_print & pp, const struct stat * in_statsp,
@@ -509,20 +453,15 @@ int compress( const long long member_size, const long long volume_size,
   long long partial_volume_size = 0;
   const int out_buffer_size = 65536, in_buffer_size = 8 * out_buffer_size;
   uint8_t in_buffer[in_buffer_size], out_buffer[out_buffer_size];
-  int in_pos = 0, in_stream_pos = 0;
   while( true )
     {
-    if( in_stream_pos == 0 )
+    int in_size = std::min( LZ_compress_write_size( encoder ), in_buffer_size );
+    if( in_size > 0 )
       {
-      in_stream_pos = readblock( inhandle, (char *)in_buffer, in_buffer_size );
-      if( in_stream_pos == 0 ) LZ_compress_finish( encoder );
-      }
-    int in_size = 0;
-    if( in_pos < in_stream_pos )
-      {
-      in_size = LZ_compress_write( encoder, in_buffer + in_pos, in_stream_pos - in_pos );
-      in_pos += in_size;
-      if( in_pos >= in_stream_pos ) { in_stream_pos = 0; in_pos = 0; }
+      in_size = readblock( inhandle, (char *)in_buffer, in_size );
+      if( in_size == 0 ) LZ_compress_finish( encoder );
+      else if( in_size != LZ_compress_write( encoder, in_buffer, in_size ) )
+        internal_error( "library error" );
       }
     int out_size = LZ_compress_read( encoder, out_buffer, out_buffer_size );
 //    std::fprintf( stderr, "%6d in_size, %5d out_size.\n", in_size, out_size );
@@ -639,7 +578,7 @@ int decompress( const int inhandle, const Pretty_print & pp,
         }
       pp(); show_error( "read error", errno ); return 1;
       }
-    else if( out_size > 0 )
+    else if( out_size > 0 && outhandle >= 0 )
       {
       const int wr = writeblock( outhandle, (char *)out_buffer, out_size );
       if( wr != out_size )
@@ -691,16 +630,77 @@ void Pretty_print::operator()( const char * const msg ) const throw()
   }
 
 
+void show_error( const char * msg, const int errcode, const bool help ) throw()
+  {
+  if( verbosity >= 0 )
+    {
+    if( msg && msg[0] != 0 )
+      {
+      std::fprintf( stderr, "%s: %s", program_name, msg );
+      if( errcode > 0 ) std::fprintf( stderr, ": %s", std::strerror( errcode ) );
+      std::fprintf( stderr, "\n" );
+      }
+    if( help && invocation_name && invocation_name[0] != 0 )
+      std::fprintf( stderr, "Try `%s --help' for more information.\n", invocation_name );
+    }
+  }
+
+
+void internal_error( const char * msg )
+  {
+  std::string s( "internal error: " ); s += msg;
+  show_error( s.c_str() );
+  std::exit( 3 );
+  }
+
+
+// Returns the number of bytes really read.
+// If (returned value < size) and (errno == 0), means EOF was reached.
+//
+int readblock( const int fd, char * buf, const int size ) throw()
+  {
+  int rest = size;
+  errno = 0;
+  while( rest > 0 )
+    {
+    errno = 0;
+    const int n = read( fd, buf + size - rest, rest );
+    if( n > 0 ) rest -= n;
+    else if( n == 0 ) break;
+    else if( errno != EINTR && errno != EAGAIN ) break;
+    }
+  return ( rest > 0 ) ? size - rest : size;
+  }
+
+
+// Returns the number of bytes really written.
+// If (returned value < size), it is always an error.
+//
+int writeblock( const int fd, const char * buf, const int size ) throw()
+  {
+  int rest = size;
+  errno = 0;
+  while( rest > 0 )
+    {
+    errno = 0;
+    const int n = write( fd, buf + size - rest, rest );
+    if( n > 0 ) rest -= n;
+    else if( errno && errno != EINTR && errno != EAGAIN ) break;
+    }
+  return ( rest > 0 ) ? size - rest : size;
+  }
+
+
 int main( const int argc, const char * argv[] )
   {
   // Mapping from gzip/bzip2 style 1..9 compression modes
   // to the corresponding LZMA compression modes.
   const lzma_options option_mapping[] =
     {
-    { 1 << 22,  10 },		// -1
-    { 1 << 22,  12 },		// -2
-    { 1 << 22,  17 },		// -3
-    { 1 << 22,  26 },		// -4
+    { 1 << 20,  10 },		// -1
+    { 1 << 20,  12 },		// -2
+    { 1 << 20,  17 },		// -3
+    { 1 << 21,  26 },		// -4
     { 1 << 22,  44 },		// -5
     { 1 << 23,  80 },		// -6
     { 1 << 24, 108 },		// -7
@@ -800,10 +800,7 @@ int main( const int argc, const char * argv[] )
 
   Pretty_print pp( filenames );
   if( program_mode == m_test )
-    {
-    output_filename = "/dev/null";
-    if( !open_outstream( true ) ) return 1;
-    }
+    outhandle = -1;
 
   int retval = 0;
   for( unsigned int i = 0; i < filenames.size(); ++i )

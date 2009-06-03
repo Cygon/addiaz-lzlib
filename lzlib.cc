@@ -45,6 +45,7 @@ struct Encoder
   Matchfinder * matchfinder;
   LZ_encoder * lz_encoder;
   LZ_errno lz_errno;
+  bool flush_pending;
   const File_header member_header;
 
   Encoder( const File_header & header ) throw()
@@ -54,6 +55,7 @@ struct Encoder
     matchfinder( 0 ),
     lz_encoder( 0 ),
     lz_errno( LZ_ok ),
+    flush_pending( false ),
     member_header( header )
     {}
   };
@@ -140,6 +142,28 @@ void * LZ_compress_open( const int dictionary_size, const int match_len_limit,
   }
 
 
+int LZ_compress_restart_member( void * const encoder,
+                                const long long member_size )
+  {
+  if( !verify_encoder( encoder ) ) return -1;
+  Encoder & e = *(Encoder *)encoder;
+  if( !e.lz_encoder->member_finished() )
+    { e.lz_errno = LZ_sequence_error; return -1; }
+
+  e.partial_in_size += e.matchfinder->data_position();
+  e.partial_out_size += e.lz_encoder->member_position();
+  e.matchfinder->reset();
+
+  delete e.lz_encoder;
+  try {
+    e.lz_encoder = new LZ_encoder( *e.matchfinder, e.member_header, member_size );
+    }
+  catch( std::bad_alloc )
+    { e.lz_encoder = 0; e.lz_errno = LZ_mem_error; return -1; }
+  return 0;
+  }
+
+
 int LZ_compress_close( void * const encoder )
   {
   if( !encoder ) return -1;
@@ -154,38 +178,26 @@ int LZ_compress_close( void * const encoder )
 int LZ_compress_finish( void * const encoder )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  ((Encoder *)encoder)->matchfinder->finish();
+  Encoder & e = *(Encoder *)encoder;
+  e.matchfinder->flushing( true );
+  e.flush_pending = false;
   return 0;
   }
 
 
-int LZ_compress_finish_member( void * const encoder )
-  {
-  if( !verify_encoder( encoder ) ) return -1;
-  ((Encoder *)encoder)->lz_encoder->finish_member();
-  return 0;
-  }
-
-
-int LZ_compress_restart_member( void * const encoder,
-                                const long long member_size )
+int LZ_compress_sync_flush( void * const encoder )
   {
   if( !verify_encoder( encoder ) ) return -1;
   Encoder & e = *(Encoder *)encoder;
-  if( !e.lz_encoder->member_finished() )
-    { e.lz_errno = LZ_sequence_error; return -1; }
-
-  e.partial_in_size += e.matchfinder->data_position();
-  e.partial_out_size += e.lz_encoder->member_position();
-  if( !e.matchfinder->reset() )
-    { e.lz_errno = LZ_library_error; return -1; }
-
-  delete e.lz_encoder;
-  try {
-    e.lz_encoder = new LZ_encoder( *e.matchfinder, e.member_header, member_size );
+  if( !e.flush_pending && !e.matchfinder->at_stream_end() )
+    {
+    e.flush_pending = true;
+    e.matchfinder->flushing( true );
+    if( !e.lz_encoder->encode_member( false ) )
+      { e.lz_errno = LZ_library_error; return -1; }
+    if( e.lz_encoder->sync_flush() )
+      { e.matchfinder->flushing( false ); e.flush_pending = false; }
     }
-  catch( std::bad_alloc )
-    { e.lz_encoder = 0; e.lz_errno = LZ_mem_error; return -1; }
   return 0;
   }
 
@@ -195,8 +207,10 @@ int LZ_compress_read( void * const encoder, uint8_t * const buffer,
   {
   if( !verify_encoder( encoder ) ) return -1;
   Encoder & e = *(Encoder *)encoder;
-  if( !e.lz_encoder->encode_member() )
+  if( !e.lz_encoder->encode_member( !e.flush_pending ) )
     { e.lz_errno = LZ_library_error; return -1; }
+  if( e.flush_pending && e.lz_encoder->sync_flush() )
+    { e.matchfinder->flushing( false ); e.flush_pending = false; }
   return e.lz_encoder->read_data( buffer, size );
   }
 
@@ -205,7 +219,18 @@ int LZ_compress_write( void * const encoder, uint8_t * const buffer,
                        const int size )
   {
   if( !verify_encoder( encoder ) ) return -1;
-  return ((Encoder *)encoder)->matchfinder->write_data( buffer, size );
+  Encoder & e = *(Encoder *)encoder;
+  if( e.flush_pending ) return 0;
+  return e.matchfinder->write_data( buffer, size );
+  }
+
+
+int LZ_compress_write_size( void * const encoder )
+  {
+  if( !verify_encoder( encoder ) ) return -1;
+  Encoder & e = *(Encoder *)encoder;
+  if( e.flush_pending ) return 0;
+  return e.matchfinder->free_bytes();
   }
 
 
@@ -220,7 +245,8 @@ int LZ_compress_finished( void * const encoder )
   {
   if( !verify_encoder( encoder ) ) return -1;
   Encoder & e = *(Encoder *)encoder;
-  return ( e.matchfinder->finished() && e.lz_encoder->member_finished() );
+  return ( !e.flush_pending && e.matchfinder->finished() &&
+           e.lz_encoder->member_finished() );
   }
 
 

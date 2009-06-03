@@ -1,15 +1,23 @@
-2009-05-03  Antonio Diaz  <ant_diaz@teleline.es>
+2009-06-03  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 0.4 released.
+	* Added new function LZ_compress_sync_flush.
+	* Added new function LZ_compress_write_size.
+	* Decompression speed has been improved.
+	* Added chapter "Buffering" to the manual.
+
+2009-05-03  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.3 released.
 	* Lzilib is now built as a shared library (in addition to static).
 
-2009-04-26  Antonio Diaz  <ant_diaz@teleline.es>
+2009-04-26  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.2 released.
 	* Fixed a segfault when decompressing trailing garbage.
 	* Fixed a false positive in LZ_(de)compress_finished.
 
-2009-04-21  Antonio Diaz  <ant_diaz@teleline.es>
+2009-04-21  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.1 released.
 

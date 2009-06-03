@@ -25,10 +25,9 @@
     Public License.
 */
 
-const int min_available_bytes = 8 + sizeof( File_trailer );
-
 class Input_buffer : public Circular_buffer
   {
+  enum { min_available_bytes = 8 + sizeof( File_trailer ) };
   bool at_stream_end_;
 
 public:
@@ -41,6 +40,12 @@ public:
   void finish() throw() { at_stream_end_ = true; }
   bool finished() const throw() { return at_stream_end_ && !used_bytes(); }
   void purge() throw() { at_stream_end_ = true; Circular_buffer::reset(); }
+
+  bool enough_available_bytes() const throw()
+    {
+    return ( used_bytes() > 0 &&
+           ( at_stream_end_ || used_bytes() >= min_available_bytes ) );
+    }
 
   int write_data( uint8_t * const in_buffer, const int in_size ) throw()
     {
@@ -55,6 +60,7 @@ class Range_decoder
   mutable long long member_pos;
   uint32_t code;
   uint32_t range;
+  bool reload_pending;
   Input_buffer & ibuf;
 
 public:
@@ -63,8 +69,16 @@ public:
     member_pos( header_size ),
     code( 0 ),
     range( 0xFFFFFFFF ),
+    reload_pending( false ),
     ibuf( buf )
     { for( int i = 0; i < 5; ++i ) code = (code << 8) | get_byte(); }
+
+  bool at_stream_end() const throw() { return ibuf.at_stream_end(); }
+  int available_bytes() const throw() { return ibuf.used_bytes(); }
+  bool enough_available_bytes() const throw()
+    { return ibuf.enough_available_bytes(); }
+  bool finished() const throw() { return ibuf.finished(); }
+  long long member_position() const throw() { return member_pos; }
 
   uint8_t get_byte() const
     {
@@ -72,53 +86,69 @@ public:
     return ibuf.get_byte();
     }
 
-  bool at_stream_end() const throw() { return ibuf.at_stream_end(); }
-  int available_bytes() const throw() { return ibuf.used_bytes(); }
-  bool finished() const throw() { return ibuf.finished(); }
-  long long member_position() const throw() { return member_pos; }
+  bool try_reload( const bool force = false ) throw()
+    {
+    if( force ) reload_pending = true;
+    if( reload_pending && available_bytes() >= 5 )
+      {
+      code = 0;
+      range = 0xFFFFFFFF;
+      reload_pending = false;
+      for( int i = 0; i < 5; ++i ) code = (code << 8) | get_byte();
+      }
+    return !reload_pending;
+    }
+
+  void normalize()
+    {
+    if( range <= 0x00FFFFFF )
+      { range <<= 8; code = (code << 8) | get_byte(); }
+    }
 
   int decode( const int num_bits )
     {
     int symbol = 0;
-    for( int i = num_bits - 1; i >= 0; --i )
+    for( int i = num_bits; i > 0; --i )
       {
-      range >>= 1;
       symbol <<= 1;
-      if( code >= range )
-        { code -= range; symbol |= 1; }
       if( range <= 0x00FFFFFF )
-        { range <<= 8; code = (code << 8) | get_byte(); }
+        {
+        range <<= 7; code = (code << 8) | get_byte();
+        if( code >= range ) { code -= range; symbol |= 1; }
+        }
+      else
+        {
+        range >>= 1;
+        if( code >= range ) { code -= range; symbol |= 1; }
+        }
       }
     return symbol;
     }
 
   int decode_bit( Bit_model & bm )
     {
-    int symbol;
+    normalize();
     const uint32_t bound = ( range >> bit_model_total_bits ) * bm.probability;
     if( code < bound )
       {
       range = bound;
       bm.probability += (bit_model_total - bm.probability) >> bit_model_move_bits;
-      symbol = 0;
+      return 0;
       }
     else
       {
       range -= bound;
       code -= bound;
       bm.probability -= bm.probability >> bit_model_move_bits;
-      symbol = 1;
+      return 1;
       }
-    if( range <= 0x00FFFFFF )
-      { range <<= 8; code = (code << 8) | get_byte(); }
-    return symbol;
     }
 
   int decode_tree( Bit_model bm[], const int num_bits )
     {
     int model = 1;
     for( int i = num_bits; i > 0; --i )
-      model = ( model << 1 ) | decode_bit( bm[model-1] );
+      model = ( model << 1 ) | decode_bit( bm[model] );
     return model - (1 << num_bits);
     }
 
@@ -126,27 +156,31 @@ public:
     {
     int model = 1;
     int symbol = 0;
-    for( int i = 1; i < (1 << num_bits); i <<= 1 )
+    for( int i = 0; i < num_bits; ++i )
       {
-      const int bit = decode_bit( bm[model-1] );
-      model = ( model << 1 ) | bit;
-      if( bit ) symbol |= i;
+      const int bit = decode_bit( bm[model] );
+      model <<= 1;
+      if( bit ) { model |= 1; symbol |= (1 << i); }
       }
     return symbol;
     }
 
   int decode_matched( Bit_model bm[], const int match_byte )
     {
+    Bit_model *bm1 = bm + 0x100;
     int symbol = 1;
-    for( int i = 7; i >= 0; --i )
+    for( int i = 1; i <= 8; ++i )
       {
-      const int match_bit = ( match_byte >> i ) & 1;
-      const int bit = decode_bit( bm[(match_bit<<8)+symbol+0xFF] );
+      const int match_bit = ( match_byte << i ) & 0x100;
+      const int bit = decode_bit( bm1[match_bit+symbol] );
       symbol = ( symbol << 1 ) | bit;
-      if( match_bit != bit ) break;
+      if( ( match_bit && !bit ) || ( !match_bit && bit ) )
+        {
+        while( ++i <= 8 )
+          symbol = ( symbol << 1 ) | decode_bit( bm[symbol] );
+        break;
+        }
       }
-    while( symbol < 0x100 )
-      symbol = ( symbol << 1 ) | decode_bit( bm[symbol-1] );
     return symbol & 0xFF;
     }
   };
@@ -193,6 +227,7 @@ public:
 
 class LZ_decoder : public Circular_buffer
   {
+  enum { min_free_bytes = max_match_len };
   long long partial_data_pos;
   const int format_version;
   const int dictionary_size;
@@ -220,7 +255,6 @@ class LZ_decoder : public Circular_buffer
   Len_decoder rep_match_len_decoder;
   Literal_decoder literal_decoder;
 
-//  using Circular_buffer::get_byte;
   uint8_t get_byte( const int distance ) const throw()
     {
     int i = put - distance - 1;
@@ -235,20 +269,23 @@ class LZ_decoder : public Circular_buffer
     if( ++put >= buffer_size ) { partial_data_pos += put; put = 0; }
     }
 
-  bool copy_block( const int distance, int len )
+  void copy_block( const int distance, int len )
     {
-    if( distance < 0 || distance >= dictionary_size ||
-        len <= 0 || len > max_match_len ) return false;
     int i = put - distance - 1;
     if( i < 0 ) i += buffer_size;
-    for( ; len > 0 ; --len )
+    if( len < buffer_size - std::max( put, i ) && len <= distance )
+      {
+      crc32.update( crc_, buffer + i, len );
+      std::memcpy( buffer + put, buffer + i, len );
+      put += len;
+      }
+    else for( ; len > 0 ; --len )
       {
       crc32.update( crc_, buffer[i] );
       buffer[put] = buffer[i];
       if( ++put >= buffer_size ) { partial_data_pos += put; put = 0; }
       if( ++i >= buffer_size ) i = 0;
       }
-    return true;
     }
 
   bool verify_trailer();
@@ -256,7 +293,7 @@ class LZ_decoder : public Circular_buffer
 public:
   LZ_decoder( const File_header & header, Input_buffer & ibuf )
     :
-    Circular_buffer( std::max( 65536, header.dictionary_size() ) + max_match_len ),
+    Circular_buffer( std::max( 65536, header.dictionary_size() ) + min_free_bytes ),
     partial_data_pos( 0 ),
     format_version( header.version ),
     dictionary_size( header.dictionary_size() ),
@@ -269,6 +306,9 @@ public:
     prev_byte( 0 ),
     range_decoder( sizeof header, ibuf ),
     literal_decoder() {}
+
+  bool enough_free_bytes() const throw()
+    { return free_bytes() >= min_free_bytes; }
 
   uint32_t crc() const throw() { return crc_ ^ 0xFFFFFFFF; }
   int decode_member();

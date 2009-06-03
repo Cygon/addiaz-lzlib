@@ -12,9 +12,9 @@ sh_lib_objs = sh_decoder.o sh_encoder.o sh_lzlib.o
 objs        = arg_parser.o main.o
 
 
-.PHONY : all doc check install install-info \
-         uninstall uninstall-info \
-         dist clean distclean
+.PHONY : all install install-info install-man install-strip \
+         uninstall uninstall-info uninstall-man \
+         doc info man check dist clean distclean
 
 all : $(progname) $(progname_shared)
 
@@ -60,15 +60,17 @@ arg_parser.o   : Makefile arg_parser.h
 main.o         : Makefile arg_parser.h lzlib.h $(libname).a
 
 
-doc : info $(VPATH)/doc/$(progname).1
+doc : info man
 
 info : $(VPATH)/doc/$(pkgname).info
 
 $(VPATH)/doc/$(pkgname).info : $(VPATH)/doc/$(pkgname).texinfo
 	cd $(VPATH)/doc && makeinfo $(pkgname).texinfo
 
+man : $(VPATH)/doc/$(progname).1
+
 $(VPATH)/doc/$(progname).1 : $(progname)
-	help2man -o $(VPATH)/doc/$(progname).1 ./$(progname)
+	help2man -o $(VPATH)/doc/$(progname).1 --no-info ./$(progname)
 
 Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 	./config.status
@@ -95,6 +97,9 @@ install-info :
 	if test ! -d $(DESTDIR)$(infodir) ; then $(INSTALL) -d $(DESTDIR)$(infodir) ; fi
 	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info $(DESTDIR)$(infodir)/$(pkgname).info
 	-install-info --info-dir=$(DESTDIR)$(infodir) $(DESTDIR)$(infodir)/$(pkgname).info
+
+install-strip : all
+	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
 uninstall : uninstall-info
 	-rm -f $(DESTDIR)$(includedir)/$(pkgname).h

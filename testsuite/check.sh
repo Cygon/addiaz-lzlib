@@ -5,6 +5,8 @@
 # This script is free software: you have unlimited permission
 # to copy, distribute and modify it.
 
+LC_ALL=C
+export LC_ALL
 objdir=`pwd`
 testdir=`cd "$1" ; pwd`
 LZIP="${objdir}"/minilzip

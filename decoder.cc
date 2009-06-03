@@ -51,7 +51,7 @@ int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size )
     size = std::min( buffer_size - get, out_size );
     if( size > 0 )
       {
-      std::memmove( out_buffer, buffer + get, size );
+      std::memcpy( out_buffer, buffer + get, size );
       get += size;
       if( get >= buffer_size ) get = 0;
       }
@@ -61,7 +61,7 @@ int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size )
     const int size2 = std::min( put - get, out_size - size );
     if( size2 > 0 )
       {
-      std::memmove( out_buffer + size, buffer + get, size2 );
+      std::memcpy( out_buffer + size, buffer + get, size2 );
       get += size2;
       size += size2;
       }
@@ -78,7 +78,7 @@ int Circular_buffer::write_data( uint8_t * const in_buffer, const int in_size ) 
     size = std::min( buffer_size - put - (get == 0), in_size );
     if( size > 0 )
       {
-      std::memmove( buffer + put, in_buffer, size );
+      std::memcpy( buffer + put, in_buffer, size );
       put += size;
       if( put >= buffer_size ) put = 0;
       }
@@ -88,7 +88,7 @@ int Circular_buffer::write_data( uint8_t * const in_buffer, const int in_size ) 
     const int size2 = std::min( get - put - 1, in_size - size );
     if( size2 > 0 )
       {
-      std::memmove( buffer + put, in_buffer + size, size2 );
+      std::memcpy( buffer + put, in_buffer + size, size2 );
       put += size2;
       size += size2;
       }
@@ -104,8 +104,9 @@ bool LZ_decoder::verify_trailer()
   const int trailer_size = trailer.size( format_version );
   for( int i = 0; i < trailer_size && !error; ++i )
     {
-    if( range_decoder.finished() ) error = true;
-    ((uint8_t *)&trailer)[i] = range_decoder.get_byte();
+    if( !range_decoder.finished() )
+      ((uint8_t *)&trailer)[i] = range_decoder.get_byte();
+    else error = true;
     }
   if( format_version == 0 ) trailer.member_size( member_position() );
   if( trailer.data_crc() != crc() ) error = true;
@@ -120,14 +121,12 @@ bool LZ_decoder::verify_trailer()
 int LZ_decoder::decode_member()
   {
   if( member_finished_ ) return 0;
+  if( !range_decoder.try_reload() ) return 0;
   while( true )
     {
-    if( range_decoder.available_bytes() <= 0 ||
-        ( !range_decoder.at_stream_end() &&
-          range_decoder.available_bytes() < min_available_bytes ) )
-      return 0;					// need more data
-    if( free_bytes() < max_match_len ) return 0;
     if( range_decoder.finished() ) return 2;
+    if( !range_decoder.enough_available_bytes() || !enough_free_bytes() )
+      return 0;
     const int pos_state = data_position() & pos_state_mask;
     if( range_decoder.decode_bit( bm_match[state()][pos_state] ) == 0 )
       {
@@ -173,9 +172,8 @@ int LZ_decoder::decode_member()
         }
       else
         {
-        rep3 = rep2; rep2 = rep1; rep1 = rep0;
+        unsigned int rep0_saved = rep0;
         len = min_match_len + len_decoder.decode( range_decoder, pos_state );
-        state.set_match();
         const int dis_slot = range_decoder.decode_tree( bm_dis_slot[get_dis_state(len)], dis_slot_bits );
         if( dis_slot < start_dis_model ) rep0 = dis_slot;
         else
@@ -190,17 +188,27 @@ int LZ_decoder::decode_member()
             rep0 += range_decoder.decode_tree_reversed( bm_align, dis_align_bits );
             if( rep0 == 0xFFFFFFFF )		// Marker found
               {
+              rep0 = rep0_saved;
+              range_decoder.normalize();
               if( len == min_match_len )	// End Of Stream marker
                 {
                 member_finished_ = true;
                 if( verify_trailer() ) return 0; else return 3;
                 }
+              if( len == min_match_len + 1 )	// Sync Flush marker
+                {
+                if( range_decoder.try_reload( true ) ) continue;
+                else return 0;
+                }
               return 4;
               }
+            if( rep0 >= (unsigned int)dictionary_size ) return 1;
             }
           }
+        rep3 = rep2; rep2 = rep1; rep1 = rep0_saved;
+        state.set_match();
         }
-      if( !copy_block( rep0, len ) ) return 1;
+      copy_block( rep0, len );
       prev_byte = get_byte( 0 );
       }
     }

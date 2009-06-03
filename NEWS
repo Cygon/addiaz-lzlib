@@ -1,3 +1,10 @@
-Changes in version 0.3:
+Changes in version 0.4:
 
-Lzilib is now built as a shared library (in addition to static).
+Partial flush of the compressed data has been implemented with the
+function LZ_compress_sync_flush.
+
+The function LZ_compress_write_size has been added.
+
+Decompression speed has been improved.
+
+The chapter "Buffering" has been added to the manual.

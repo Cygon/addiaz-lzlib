@@ -96,7 +96,7 @@ inline int price_symbol( const Bit_model bm[], int symbol, const int num_bits ) 
     {
     const int bit = symbol & 1;
     symbol >>= 1;
-    price += price_bit( bm[symbol-1], bit );
+    price += price_bit( bm[symbol], bit );
     }
   return price;
   }
@@ -110,7 +110,7 @@ inline int price_symbol_reversed( const Bit_model bm[], int symbol,
     {
     const int bit = symbol & 1;
     symbol >>= 1;
-    price += price_bit( bm[model-1], bit );
+    price += price_bit( bm[model], bit );
     model = ( model << 1 ) | bit;
     }
   return price;
@@ -126,14 +126,14 @@ inline int price_matched( const Bit_model bm[], const int symbol,
     {
     const int match_bit = ( match_byte >> i ) & 1;
     const int bit = ( symbol >> i ) & 1;
-    price += price_bit( bm[(match_bit<<8)+model+0xFF], bit );
+    price += price_bit( bm[(match_bit<<8)+model+0x100], bit );
     model = ( model << 1 ) | bit;
     if( match_bit != bit )
       {
       while( --i >= 0 )
         {
         const int bit = ( symbol >> i ) & 1;
-        price += price_bit( bm[model-1], bit );
+        price += price_bit( bm[model], bit );
         model = ( model << 1 ) | bit;
         }
       break;
@@ -166,32 +166,7 @@ class Matchfinder
   bool at_stream_end_;		// stream_pos shows real end of file
 
 public:
-  Matchfinder( const int dict_size, const int len_limit )
-    :
-    partial_data_pos( 0 ),
-    dictionary_size_( dict_size ),
-    after_size( max_num_trials + max_match_len ),
-    buffer_size( ( 2 * std::max( 65536, dictionary_size_ ) ) +
-                 max_num_trials + after_size ),
-    buffer( new( std::nothrow ) uint8_t[buffer_size] ),
-    pos( 0 ),
-    cyclic_pos( 0 ),
-    stream_pos( 0 ),
-    pos_limit( buffer_size - after_size ),
-    match_len_limit_( len_limit ),
-    prev_positions( new( std::nothrow ) int32_t[num_prev_positions] ),
-    at_stream_end_( false )
-    {
-    prev_pos_tree = new( std::nothrow ) int32_t[2*dictionary_size_];
-    if( !buffer || !prev_positions || !prev_pos_tree )
-      {
-      if( prev_pos_tree ) delete[] prev_pos_tree;
-      if( prev_positions ) delete[] prev_positions;
-      if( buffer ) delete[] buffer;
-      throw std::bad_alloc();
-      }
-    for( int i = 0; i < num_prev_positions; ++i ) prev_positions[i] = -1;
-    }
+  Matchfinder( const int dict_size, const int len_limit );
 
   ~Matchfinder()
     { delete[] prev_pos_tree; delete[] prev_positions; delete[] buffer; }
@@ -201,8 +176,9 @@ public:
   int available_bytes() const throw() { return stream_pos - pos; }
   long long data_position() const throw() { return partial_data_pos + pos; }
   int dictionary_size() const throw() { return dictionary_size_; }
-  void finish() throw() { at_stream_end_ = true; }
+  void flushing( const bool b ) throw() { at_stream_end_ = b; }
   bool finished() const throw() { return at_stream_end_ && pos >= stream_pos; }
+  int free_bytes() const throw() { return buffer_size - stream_pos; }
   int match_len_limit() const throw() { return match_len_limit_; }
   const uint8_t * ptr_to_current_pos() const throw() { return buffer + pos; }
 
@@ -213,6 +189,12 @@ public:
     cyclic_pos -= ahead;
     if( cyclic_pos < 0 ) cyclic_pos += dictionary_size_;
     return true;
+    }
+
+  bool enough_available_bytes() const throw()
+    {
+    return ( stream_pos > pos &&
+           ( at_stream_end_ || stream_pos - pos >= after_size ) );
     }
 
   int true_match_len( const int index, const int distance, int len_limit ) const throw()
@@ -226,7 +208,7 @@ public:
     }
 
   int write_data( uint8_t * const in_buffer, const int in_size ) throw();
-  bool reset() throw();
+  void reset() throw();
   bool move_pos() throw();
   int longest_match_len( int * const distances = 0 ) throw();
   };
@@ -234,6 +216,7 @@ public:
 
 class Range_encoder : public Circular_buffer
   {
+  enum { min_free_bytes = 2 * max_num_trials };
   uint64_t low;
   long long partial_member_pos;
   uint32_t range;
@@ -256,12 +239,15 @@ class Range_encoder : public Circular_buffer
 public:
   Range_encoder()
     :
-    Circular_buffer( 65536 + (2 * max_num_trials) ),
+    Circular_buffer( 65536 + min_free_bytes ),
     low( 0 ),
     partial_member_pos( 0 ),
     range( 0xFFFFFFFF ),
     ff_count( 0 ),
     cache( 0 ) {}
+
+  bool enough_free_bytes() const throw()
+    { return free_bytes() >= min_free_bytes; }
 
   int read_data( uint8_t * const out_buffer, const int out_size ) throw()
     {
@@ -270,7 +256,14 @@ public:
     return size;
     }
 
-  void flush() { for( int i = 0; i < 5; ++i ) shift_low(); }
+  void flush()
+    {
+    for( int i = 0; i < 5; ++i ) shift_low();
+    low = 0;
+    range = 0xFFFFFFFF;
+    ff_count = 0;
+    cache = 0;
+    }
 
   long long member_position() const throw()
     { return partial_member_pos + used_bytes() + ff_count; }
@@ -309,7 +302,7 @@ public:
     for( int i = num_bits; i > 0; --i, mask >>= 1 )
       {
       const int bit = ( symbol & mask );
-      encode_bit( bm[model-1], bit );
+      encode_bit( bm[model], bit );
       model <<= 1;
       if( bit ) model |= 1;
       }
@@ -321,7 +314,7 @@ public:
     for( int i = num_bits; i > 0; --i )
       {
       const int bit = symbol & 1;
-      encode_bit( bm[model-1], bit );
+      encode_bit( bm[model], bit );
       model = ( model << 1 ) | bit;
       symbol >>= 1;
       }
@@ -334,14 +327,14 @@ public:
       {
       const int bit = ( symbol >> i ) & 1;
       const int match_bit = ( match_byte >> i ) & 1;
-      encode_bit( bm[(match_bit<<8)+model+0xFF], bit );
+      encode_bit( bm[(match_bit<<8)+model+0x100], bit );
       model = ( model << 1 ) | bit;
       if( match_bit != bit )
         {
         while( --i >= 0 )
           {
           const int bit = ( symbol >> i ) & 1;
-          encode_bit( bm[model-1], bit );
+          encode_bit( bm[model], bit );
           model = ( model << 1 ) | bit;
           }
         break;
@@ -421,6 +414,7 @@ class LZ_encoder
   {
   enum { dis_align_mask = dis_align_size - 1,
          infinite_price = 0x0FFFFFFF,
+         max_marker_size = 15,
          num_rep_distances = 4 };	// must be 4
 
   struct Trial
@@ -589,19 +583,18 @@ class LZ_encoder
   int best_pair_sequence( const int reps[num_rep_distances],
                           const State & state );
 
-  void flush( const State & state );
+  bool full_flush();
 
 public:
   LZ_encoder( Matchfinder & mf, const File_header & header,
               const long long member_size );
 
-  bool encode_member();
-  void finish_member()
-    { if( !member_finished_ ) { flush( state ); member_finished_ = true; } }
+  bool encode_member( const bool finish );
   bool member_finished() const throw()
     { return member_finished_ && !range_encoder.used_bytes(); }
   int read_data( uint8_t * const buffer, const int size ) throw()
     { return range_encoder.read_data( buffer, size ); }
+  bool sync_flush();
 
   long long member_position() const throw()
     { return range_encoder.member_position(); }
