@@ -558,8 +558,8 @@ int decompress( const int inhandle, const Pretty_print & pp,
       const LZ_errno lz_errno = LZ_decompress_errno( decoder );
       if( lz_errno == LZ_header_error )
         {
-        if( LZ_decompress_total_out_size( decoder ) > 0 )  // trailing garbage
-          break;
+        if( LZ_decompress_total_out_size( decoder ) > 0 )
+          break;				// trailing garbage
         pp( "error reading member header" );
         return 1;
         }
@@ -596,7 +596,7 @@ int decompress( const int inhandle, const Pretty_print & pp,
   }
 
 
-void signal_handler( const int ) throw()
+extern "C" void signal_handler( int ) throw()
   {
   show_error( "Control-C or similar caught, quitting." );
   cleanup_and_fail( 0 );

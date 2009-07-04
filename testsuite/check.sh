@@ -28,7 +28,7 @@ fail=0
 "${LZIP}" -cd "${testdir}"/COPYING.lz > copy || fail=1
 cmp in copy || fail=1
 
-for i in 1 2 3 4 5 6 7 8 9; do
+for i in s4096 1 2 3 4 5 6 7 8 9; do
 	"${LZIP}" -k -$i in || fail=1
 	mv -f in.lz copy.lz || fail=1
 	echo -n "garbage" >> copy.lz || fail=1
@@ -37,7 +37,7 @@ for i in 1 2 3 4 5 6 7 8 9; do
 	echo -n .
 done
 
-for i in 1 2 3 4 5 6 7 8 9; do
+for i in s4096 1 2 3 4 5 6 7 8 9; do
 	"${LZIP}" -c -$i in > out || fail=1
 	echo -n "g" >> out || fail=1
 	"${LZIP}" -cd out > copy || fail=1
@@ -45,14 +45,14 @@ for i in 1 2 3 4 5 6 7 8 9; do
 	echo -n .
 done
 
-for i in 1 2 3 4 5 6 7 8 9; do
+for i in s4096 1 2 3 4 5 6 7 8 9; do
 	"${LZIP}" -c -$i < in > out || fail=1
 	"${LZIP}" -d < out > copy || fail=1
 	cmp in copy || fail=1
 	echo -n .
 done
 
-for i in 1 2 3 4 5 6 7 8 9; do
+for i in s4096 1 2 3 4 5 6 7 8 9; do
 	"${LZIP}" -f -$i -o out < in || fail=1
 	"${LZIP}" -df -o copy < out.lz || fail=1
 	cmp in copy || fail=1

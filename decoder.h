@@ -91,9 +91,9 @@ public:
     if( force ) reload_pending = true;
     if( reload_pending && available_bytes() >= 5 )
       {
+      reload_pending = false;
       code = 0;
       range = 0xFFFFFFFF;
-      reload_pending = false;
       for( int i = 0; i < 5; ++i ) code = (code << 8) | get_byte();
       }
     return !reload_pending;
@@ -216,11 +216,11 @@ class Literal_decoder
     { return ( prev_byte >> ( 8 - literal_context_bits ) ); }
 
 public:
-  uint8_t decode( Range_decoder & range_decoder, const int prev_byte )
+  uint8_t decode( Range_decoder & range_decoder, const uint8_t prev_byte )
     { return range_decoder.decode_tree( bm_literal[state(prev_byte)], 8 ); }
 
   uint8_t decode_matched( Range_decoder & range_decoder,
-                          const int prev_byte, const int match_byte )
+                          const uint8_t prev_byte, const uint8_t match_byte )
     { return range_decoder.decode_matched( bm_literal[state(prev_byte)], match_byte ); }
   };
 
@@ -233,12 +233,11 @@ class LZ_decoder : public Circular_buffer
   const int dictionary_size;
   uint32_t crc_;
   bool member_finished_;
-  unsigned int rep0;
-  unsigned int rep1;
-  unsigned int rep2;
+  unsigned int rep0;		// rep[0-3] latest four distances
+  unsigned int rep1;		// used for efficient coding of
+  unsigned int rep2;		// repeated distances
   unsigned int rep3;
   State state;
-  uint8_t prev_byte;
 
   Bit_model bm_match[State::states][pos_states];
   Bit_model bm_rep[State::states];
@@ -273,7 +272,7 @@ class LZ_decoder : public Circular_buffer
     {
     int i = put - distance - 1;
     if( i < 0 ) i += buffer_size;
-    if( len < buffer_size - std::max( put, i ) && len <= distance )
+    if( len < buffer_size - std::max( put, i ) && len <= std::abs( put - i ) )
       {
       crc32.update( crc_, buffer + i, len );
       std::memcpy( buffer + put, buffer + i, len );
@@ -303,9 +302,9 @@ public:
     rep1( 0 ),
     rep2( 0 ),
     rep3( 0 ),
-    prev_byte( 0 ),
     range_decoder( sizeof header, ibuf ),
-    literal_decoder() {}
+    literal_decoder()
+    { buffer[buffer_size-1] = 0; }	// prev_byte of first_byte
 
   bool enough_free_bytes() const throw()
     { return free_bytes() >= min_free_bytes; }

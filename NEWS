@@ -1,10 +1,5 @@
-Changes in version 0.4:
-
-Partial flush of the compressed data has been implemented with the
-function LZ_compress_sync_flush.
-
-The function LZ_compress_write_size has been added.
+Changes in version 0.5:
 
 Decompression speed has been improved.
 
-The chapter "Buffering" has been added to the manual.
+A build problem with the Sun C++ compiler has been fixed.

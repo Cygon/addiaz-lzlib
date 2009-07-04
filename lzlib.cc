@@ -335,7 +335,7 @@ int LZ_decompress_read( void * const decoder, uint8_t * const buffer,
     if( d.ibuf->used_bytes() < 5 + (int)sizeof( File_header ) )
       {
       if( !d.ibuf->at_stream_end() || d.ibuf->finished() ) return 0;
-      d.ibuf->purge();
+      d.ibuf->purge();			// remove trailing garbage
       d.lz_errno = LZ_header_error;
       return -1;
       }
@@ -346,12 +346,12 @@ int LZ_decompress_read( void * const decoder, uint8_t * const buffer,
         header.dictionary_size() < min_dictionary_size ||
         header.dictionary_size() > max_dictionary_size )
       {
-      d.ibuf->purge();
+      d.ibuf->purge();			// remove trailing garbage
       d.lz_errno = LZ_header_error;
       return -1;
       }
     try { d.lz_decoder = new LZ_decoder( header, *d.ibuf ); }
-    catch( std::bad_alloc )
+    catch( std::bad_alloc )		// not enough free memory
       {
       d.ibuf->purge();
       d.lz_decoder = 0;

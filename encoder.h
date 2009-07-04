@@ -145,7 +145,11 @@ inline int price_matched( const Bit_model bm[], const int symbol,
 
 class Matchfinder
   {
-  enum { num_prev_positions4 = 1 << 20,
+  enum { // bytes to keep in buffer before dictionary
+         before_size = max_num_trials + 1,
+         // bytes to keep in buffer after pos
+         after_size = max_num_trials + max_match_len,
+         num_prev_positions4 = 1 << 20,
          num_prev_positions3 = 1 << 18,
          num_prev_positions2 = 1 << 16,
          num_prev_positions = num_prev_positions4 + num_prev_positions3 +
@@ -153,7 +157,6 @@ class Matchfinder
 
   long long partial_data_pos;
   const int dictionary_size_;	// bytes to keep in buffer before pos
-  const int after_size;		// bytes to keep in buffer after pos
   const int buffer_size;
   uint8_t * const buffer;
   int pos;
@@ -459,7 +462,6 @@ class LZ_encoder
   int align_price_count;
   int fill_counter;
   State state;
-  uint8_t prev_byte;
   bool member_finished_;
 
   void fill_align_prices() throw();

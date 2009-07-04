@@ -61,9 +61,8 @@ Matchfinder::Matchfinder( const int dict_size, const int len_limit )
   :
   partial_data_pos( 0 ),
   dictionary_size_( dict_size ),
-  after_size( max_num_trials + max_match_len ),
   buffer_size( ( 2 * std::max( 65536, dictionary_size_ ) ) +
-               max_num_trials + after_size ),
+               before_size + after_size ),
   buffer( new( std::nothrow ) uint8_t[buffer_size] ),
   pos( 0 ),
   cyclic_pos( 0 ),
@@ -105,7 +104,7 @@ bool Matchfinder::move_pos() throw()
     if( pos > stream_pos ) { pos = stream_pos; return false; }
     else
       {
-      const int offset = pos - dictionary_size_ - max_num_trials;
+      const int offset = pos - dictionary_size_ - before_size;
       const int size = stream_pos - offset;
       std::memmove( buffer, buffer + offset, size );
       partial_data_pos += offset;
@@ -457,7 +456,7 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
   }
 
 
-     // Sync Flush mark => (dis == 0xFFFFFFFF, len == min_match_len+1)
+     // Sync Flush mark => (dis == 0xFFFFFFFF, len == min_match_len + 1)
 bool LZ_encoder::sync_flush()
   {
   if( member_finished_ || range_encoder.free_bytes() < max_marker_size )
@@ -505,7 +504,6 @@ LZ_encoder::LZ_encoder( Matchfinder & mf, const File_header & header,
   literal_encoder(),
   num_dis_slots( 2 * File_header::real_bits( matchfinder.dictionary_size() - 1 ) ),
   fill_counter( 0 ),
-  prev_byte( 0 ),
   member_finished_( false )
   {
   for( int i = 0; i < num_rep_distances; ++i ) rep_distances[i] = 0;
@@ -522,15 +520,15 @@ bool LZ_encoder::encode_member( const bool finish )
   if( range_encoder.member_position() >= member_size_limit )
     { if( full_flush() ) { member_finished_ = true; } return true; }
 
-  // copy first byte
+  // encode first byte
   if( matchfinder.data_position() == 0 && !matchfinder.finished() )
     {
     if( matchfinder.available_bytes() < 4 && !matchfinder.at_stream_end() )
       return true;
     range_encoder.encode_bit( bm_match[state()][0], 0 );
+    const uint8_t prev_byte = 0;
     const uint8_t cur_byte = matchfinder[0];
     literal_encoder.encode( range_encoder, prev_byte, cur_byte );
-    prev_byte = cur_byte;
     crc32.update( crc_, cur_byte );
     if( !move_pos( 1 ) ) return false;
     }
@@ -560,16 +558,16 @@ bool LZ_encoder::encode_member( const bool finish )
       range_encoder.encode_bit( bm_match[state()][pos_state], !bit );
       if( bit )
         {
+        const uint8_t prev_byte = matchfinder[-ahead-1];
         const uint8_t cur_byte = matchfinder[-ahead];
         if( state.is_char() )
           literal_encoder.encode( range_encoder, prev_byte, cur_byte );
         else
           {
-          const uint8_t match_byte = matchfinder[-rep_distances[0]-1-ahead];
+          const uint8_t match_byte = matchfinder[-ahead-rep_distances[0]-1];
           literal_encoder.encode_matched( range_encoder, prev_byte, match_byte, cur_byte );
           }
         state.set_char();
-        prev_byte = cur_byte;
         }
       else
         {
@@ -600,7 +598,6 @@ bool LZ_encoder::encode_member( const bool finish )
           encode_pair( dis - num_rep_distances, len, pos_state );
           state.set_match();
           }
-        prev_byte = matchfinder[len-1-ahead];
         }
       for( int j = 0; j < len; ++j )
         crc32.update( crc_, matchfinder[j-ahead] );

@@ -130,12 +130,12 @@ int LZ_decoder::decode_member()
     const int pos_state = data_position() & pos_state_mask;
     if( range_decoder.decode_bit( bm_match[state()][pos_state] ) == 0 )
       {
+      const uint8_t prev_byte = get_byte( 0 );
       if( state.is_char() )
-        prev_byte = literal_decoder.decode( range_decoder, prev_byte );
+        put_byte( literal_decoder.decode( range_decoder, prev_byte ) );
       else
-        prev_byte = literal_decoder.decode_matched( range_decoder, prev_byte,
-                                                    get_byte( rep0 ) );
-      put_byte( prev_byte );
+        put_byte( literal_decoder.decode_matched( range_decoder, prev_byte,
+                                                  get_byte( rep0 ) ) );
       state.set_char();
       }
     else
@@ -209,7 +209,6 @@ int LZ_decoder::decode_member()
         state.set_match();
         }
       copy_block( rep0, len );
-      prev_byte = get_byte( 0 );
       }
     }
   }
