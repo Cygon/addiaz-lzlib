@@ -34,6 +34,9 @@ $(progname)_shared : $(objs) $(libname).so.$(pkgversion)
 $(progname)_profiled : $(objs) $(libname).a
 	$(CXX) $(LDFLAGS) -pg -o $(progname)_profiled $(objs) $(libname).a
 
+lzcheck : lzcheck.o $(libname).a
+	$(CXX) $(LDFLAGS) -o lzcheck lzcheck.o $(libname).a
+
 main.o : main.cc
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
 
@@ -76,7 +79,7 @@ $(VPATH)/doc/$(progname).1 : $(progname)
 Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 	./config.status
 
-check : all $(VPATH)/testsuite/check.sh
+check : all $(VPATH)/testsuite/check.sh lzcheck
 	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite
 
 install : all install-info

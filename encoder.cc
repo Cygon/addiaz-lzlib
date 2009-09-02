@@ -44,7 +44,7 @@ const Dis_slots dis_slots;
 const Prob_prices prob_prices;
 
 
-int Matchfinder::write_data( uint8_t * const in_buffer, const int in_size ) throw()
+int Matchfinder::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
   {
   if( at_stream_end_ ) return 0;
   const int size = std::min( buffer_size - stream_pos, in_size );

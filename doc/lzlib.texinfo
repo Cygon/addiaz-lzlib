@@ -5,8 +5,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 3 July 2009
-@set VERSION 0.5
+@set UPDATED 2 September 2009
+@set VERSION 0.6
 
 @dircategory Data Compression
 @direntry
@@ -68,6 +68,12 @@ Compression/decompression is done by repeteadly calling a couple of
 read/write functions until all the data has been processed by the
 library. This interface is safer and less error prone than the
 traditional zlib interface.
+
+Compression/decompression is done when the read function is called. This
+means the value returned by the position functions will not be updated
+until some data is read, even if you write a lot of data. If you want
+the data to be compressed in advance, just call the read function with a
+@var{size} equal to 0.
 
 Lzlib will correctly decompress a data stream which is the concatenation
 of two or more compressed data streams. The result is the concatenation
@@ -515,7 +521,7 @@ Example 1: Normal compression (@var{member_size} > total output).
 4) go back to step 2 until all input data has been written
 5) LZ_compress_finish
 6) LZ_compress_read
-7) go back to step 6 until LZ_compress_read returns 0
+7) go back to step 6 until LZ_compress_finished returns 1
 8) LZ_compress_close
 @end example
 
@@ -531,7 +537,7 @@ Example 2: Decompression.
 4) go back to step 2 until all input data has been written
 5) LZ_decompress_finish
 6) LZ_decompress_read
-7) go back to step 6 until LZ_decompress_read returns 0
+7) go back to step 6 until LZ_decompress_finished returns 1
 8) LZ_decompress_close
 @end example
 
@@ -549,7 +555,7 @@ Example 3: Multimember compression (@var{member_size} < total output).
  6) go back to step 2 until all input data has been written
  7) LZ_compress_finish
  8) LZ_compress_read
- 9) go back to step 8 until LZ_compress_read returns 0
+ 9) go back to step 8 until LZ_compress_finished returns 1
 10) LZ_compress_close
 @end example
 

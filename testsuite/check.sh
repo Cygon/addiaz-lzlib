@@ -10,6 +10,7 @@ export LC_ALL
 objdir=`pwd`
 testdir=`cd "$1" ; pwd`
 LZIP="${objdir}"/minilzip
+LZCHECK="${objdir}"/lzcheck
 framework_failure() { echo 'failure in testing framework'; exit 1; }
 
 if [ ! -x "${LZIP}" ] ; then
@@ -59,10 +60,13 @@ for i in s4096 1 2 3 4 5 6 7 8 9; do
 	echo -n .
 done
 
+"${LZCHECK}" in || fail=1
+echo -n .
+
 echo
-if test ${fail} = 0; then
+if [ ${fail} = 0 ]; then
 	echo "tests completed successfully."
-	if cd "${objdir}" ; then rm -r tmp ; fi
+	cd "${objdir}" && rm -r tmp
 else
 	echo "tests failed."
 fi

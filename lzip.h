@@ -277,5 +277,5 @@ public:
     }
 
   int read_data( uint8_t * const out_buffer, const int out_size ) throw();
-  int write_data( uint8_t * const in_buffer, const int in_size ) throw();
+  int write_data( const uint8_t * const in_buffer, const int in_size ) throw();
   };

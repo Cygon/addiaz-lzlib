@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-const char * const LZ_version_string = "0.5";
+const char * const LZ_version_string = "0.6";
 
 enum { min_dictionary_bits = 12,
        min_dictionary_size = 1 << min_dictionary_bits,
@@ -54,7 +54,7 @@ int LZ_compress_sync_flush( void * const encoder );
 
 int LZ_compress_read( void * const encoder, uint8_t * const buffer,
                       const int size );
-int LZ_compress_write( void * const encoder, uint8_t * const buffer,
+int LZ_compress_write( void * const encoder, const uint8_t * const buffer,
                        const int size );
 int LZ_compress_write_size( void * const encoder );
 
@@ -74,7 +74,7 @@ int LZ_decompress_finish( void * const decoder );
 
 int LZ_decompress_read( void * const decoder, uint8_t * const buffer,
                         const int size );
-int LZ_decompress_write( void * const decoder, uint8_t * const buffer,
+int LZ_decompress_write( void * const decoder, const uint8_t * const buffer,
                          const int size );
 
 enum LZ_errno LZ_decompress_errno( void * const decoder );

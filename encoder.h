@@ -210,7 +210,7 @@ public:
     return i;
     }
 
-  int write_data( uint8_t * const in_buffer, const int in_size ) throw();
+  int write_data( const uint8_t * const in_buffer, const int in_size ) throw();
   void reset() throw();
   bool move_pos() throw();
   int longest_match_len( int * const distances = 0 ) throw();
@@ -417,7 +417,7 @@ class LZ_encoder
   {
   enum { dis_align_mask = dis_align_size - 1,
          infinite_price = 0x0FFFFFFF,
-         max_marker_size = 15,
+         max_marker_size = 16,
          num_rep_distances = 4 };	// must be 4
 
   struct Trial

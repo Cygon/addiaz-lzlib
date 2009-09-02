@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <climits>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -33,7 +34,6 @@
 #include <vector>
 #include <fcntl.h>
 #include <stdint.h>
-#include <signal.h>
 #include <unistd.h>
 #include <utime.h>
 #include <sys/stat.h>
@@ -462,6 +462,8 @@ int compress( const long long member_size, const long long volume_size,
       if( in_size == 0 ) LZ_compress_finish( encoder );
       else if( in_size != LZ_compress_write( encoder, in_buffer, in_size ) )
         internal_error( "library error" );
+//      for( int i = 0; i < 10000; ++i )
+//        LZ_compress_sync_flush( encoder );
       }
     int out_size = LZ_compress_read( encoder, out_buffer, out_buffer_size );
 //    std::fprintf( stderr, "%6d in_size, %5d out_size.\n", in_size, out_size );

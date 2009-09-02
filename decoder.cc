@@ -70,7 +70,7 @@ int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size )
   }
 
 
-int Circular_buffer::write_data( uint8_t * const in_buffer, const int in_size ) throw()
+int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
   {
   int size = 0;
   if( put >= get )
@@ -109,6 +109,7 @@ bool LZ_decoder::verify_trailer()
     else error = true;
     }
   if( format_version == 0 ) trailer.member_size( member_position() );
+  if( !range_decoder.code_is_zero() ) error = true;
   if( trailer.data_crc() != crc() ) error = true;
   if( trailer.data_size() != data_position() ) error = true;
   if( trailer.member_size() != member_position() ) error = true;
@@ -122,6 +123,14 @@ int LZ_decoder::decode_member()
   {
   if( member_finished_ ) return 0;
   if( !range_decoder.try_reload() ) return 0;
+  if( verify_trailer_pending )
+    {
+    if( range_decoder.available_bytes() < File_trailer::size( format_version ) )
+      return 0;
+    verify_trailer_pending = false;
+    member_finished_ = true;
+    if( verify_trailer() ) return 0; else return 3;
+    }
   while( true )
     {
     if( range_decoder.finished() ) return 2;
@@ -192,6 +201,8 @@ int LZ_decoder::decode_member()
               range_decoder.normalize();
               if( len == min_match_len )	// End Of Stream marker
                 {
+                if( range_decoder.available_bytes() < File_trailer::size( format_version ) )
+                  { verify_trailer_pending = true; return 0; }
                 member_finished_ = true;
                 if( verify_trailer() ) return 0; else return 3;
                 }

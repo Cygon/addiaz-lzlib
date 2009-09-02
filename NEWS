@@ -1,5 +1,4 @@
-Changes in version 0.5:
+Changes in version 0.6:
 
-Decompression speed has been improved.
-
-A build problem with the Sun C++ compiler has been fixed.
+The LZ_compress_sync_flush mechanism has been fixed. (Last few bytes
+weren't inmediately available).

@@ -27,7 +27,7 @@
 
 class Input_buffer : public Circular_buffer
   {
-  enum { min_available_bytes = 8 + sizeof( File_trailer ) };
+  enum { min_available_bytes = 8 };
   bool at_stream_end_;
 
 public:
@@ -47,7 +47,7 @@ public:
            ( at_stream_end_ || used_bytes() >= min_available_bytes ) );
     }
 
-  int write_data( uint8_t * const in_buffer, const int in_size ) throw()
+  int write_data( const uint8_t * const in_buffer, const int in_size ) throw()
     {
     if( at_stream_end_ || in_size <= 0 ) return 0;
     return Circular_buffer::write_data( in_buffer, in_size );
@@ -75,6 +75,7 @@ public:
 
   bool at_stream_end() const throw() { return ibuf.at_stream_end(); }
   int available_bytes() const throw() { return ibuf.used_bytes(); }
+  bool code_is_zero() const throw() { return ( code == 0 ); }
   bool enough_available_bytes() const throw()
     { return ibuf.enough_available_bytes(); }
   bool finished() const throw() { return ibuf.finished(); }
@@ -233,6 +234,7 @@ class LZ_decoder : public Circular_buffer
   const int dictionary_size;
   uint32_t crc_;
   bool member_finished_;
+  bool verify_trailer_pending;
   unsigned int rep0;		// rep[0-3] latest four distances
   unsigned int rep1;		// used for efficient coding of
   unsigned int rep2;		// repeated distances
@@ -298,6 +300,7 @@ public:
     dictionary_size( header.dictionary_size() ),
     crc_( 0xFFFFFFFF ),
     member_finished_( false ),
+    verify_trailer_pending( false ),
     rep0( 0 ),
     rep1( 0 ),
     rep2( 0 ),

@@ -45,7 +45,7 @@ struct Encoder
   Matchfinder * matchfinder;
   LZ_encoder * lz_encoder;
   LZ_errno lz_errno;
-  bool flush_pending;
+  int flush_pending;
   const File_header member_header;
 
   Encoder( const File_header & header ) throw()
@@ -55,7 +55,7 @@ struct Encoder
     matchfinder( 0 ),
     lz_encoder( 0 ),
     lz_errno( LZ_ok ),
-    flush_pending( false ),
+    flush_pending( 0 ),
     member_header( header )
     {}
   };
@@ -180,7 +180,7 @@ int LZ_compress_finish( void * const encoder )
   if( !verify_encoder( encoder ) ) return -1;
   Encoder & e = *(Encoder *)encoder;
   e.matchfinder->flushing( true );
-  e.flush_pending = false;
+  e.flush_pending = 0;
   return 0;
   }
 
@@ -191,12 +191,12 @@ int LZ_compress_sync_flush( void * const encoder )
   Encoder & e = *(Encoder *)encoder;
   if( !e.flush_pending && !e.matchfinder->at_stream_end() )
     {
-    e.flush_pending = true;
+    e.flush_pending = 2;	// 2 consecutive markers guarantee decoding
     e.matchfinder->flushing( true );
     if( !e.lz_encoder->encode_member( false ) )
       { e.lz_errno = LZ_library_error; return -1; }
-    if( e.lz_encoder->sync_flush() )
-      { e.matchfinder->flushing( false ); e.flush_pending = false; }
+    while( e.flush_pending > 0 && e.lz_encoder->sync_flush() )
+      { if( --e.flush_pending <= 0 ) e.matchfinder->flushing( false ); }
     }
   return 0;
   }
@@ -209,13 +209,13 @@ int LZ_compress_read( void * const encoder, uint8_t * const buffer,
   Encoder & e = *(Encoder *)encoder;
   if( !e.lz_encoder->encode_member( !e.flush_pending ) )
     { e.lz_errno = LZ_library_error; return -1; }
-  if( e.flush_pending && e.lz_encoder->sync_flush() )
-    { e.matchfinder->flushing( false ); e.flush_pending = false; }
+  while( e.flush_pending > 0 && e.lz_encoder->sync_flush() )
+    { if( --e.flush_pending <= 0 ) e.matchfinder->flushing( false ); }
   return e.lz_encoder->read_data( buffer, size );
   }
 
 
-int LZ_compress_write( void * const encoder, uint8_t * const buffer,
+int LZ_compress_write( void * const encoder, const uint8_t * const buffer,
                        const int size )
   {
   if( !verify_encoder( encoder ) ) return -1;
@@ -370,7 +370,7 @@ int LZ_decompress_read( void * const decoder, uint8_t * const buffer,
   }
 
 
-int LZ_decompress_write( void * const decoder, uint8_t * const buffer,
+int LZ_decompress_write( void * const decoder, const uint8_t * const buffer,
                          const int size )
   {
   if( !verify_decoder( decoder ) ) return -1;

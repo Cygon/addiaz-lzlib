@@ -1,3 +1,8 @@
+2009-09-02  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 0.6 released.
+	* The LZ_compress_sync_flush mechanism has been fixed.
+
 2009-07-03  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.5 released.
