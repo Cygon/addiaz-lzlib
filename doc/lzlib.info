@@ -9,10 +9,10 @@ END-INFO-DIR-ENTRY
 
 File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 
-Lzlib
-*****
+Lzlib Manual
+************
 
-This manual is for Lzlib (version 0.6, 2 September 2009).
+This manual is for Lzlib (version 0.7, 20 October 2009).
 
 * Menu:
 
@@ -519,15 +519,15 @@ Concept Index
 
 Tag Table:
 Node: Top219
-Node: Introduction1015
-Node: Library Version2790
-Node: Buffering3435
-Node: Compression Functions4542
-Node: Decompression Functions10044
-Node: Error Codes13482
-Node: Data Format15418
-Node: Examples17385
-Node: Problems18819
-Node: Concept Index19389
+Node: Introduction1028
+Node: Library Version2803
+Node: Buffering3448
+Node: Compression Functions4555
+Node: Decompression Functions10057
+Node: Error Codes13495
+Node: Data Format15431
+Node: Examples17398
+Node: Problems18832
+Node: Concept Index19402
 
 End Tag Table

@@ -74,7 +74,8 @@ $(VPATH)/doc/$(pkgname).info : $(VPATH)/doc/$(pkgname).texinfo
 man : $(VPATH)/doc/$(progname).1
 
 $(VPATH)/doc/$(progname).1 : $(progname)
-	help2man -o $(VPATH)/doc/$(progname).1 --no-info ./$(progname)
+	help2man -n 'test program for the lzlib library' \
+	  -o $(VPATH)/doc/$(progname).1 --no-info ./$(progname)
 
 Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 	./config.status
@@ -83,27 +84,27 @@ check : all $(VPATH)/testsuite/check.sh lzcheck
 	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite
 
 install : all install-info
-	if test ! -d $(DESTDIR)$(includedir) ; then $(INSTALL_DIR) $(DESTDIR)$(includedir) ; fi
-	if test ! -d $(DESTDIR)$(libdir) ; then $(INSTALL_DIR) $(DESTDIR)$(libdir) ; fi
+	if [ ! -d $(DESTDIR)$(includedir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(includedir) ; fi
+	if [ ! -d $(DESTDIR)$(libdir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(libdir) ; fi
 	$(INSTALL_DATA) $(VPATH)/$(pkgname).h $(DESTDIR)$(includedir)/$(pkgname).h
 	$(INSTALL_DATA) ./$(libname).a $(DESTDIR)$(libdir)/$(libname).a
-	if test -n "$(progname_shared)" ; then \
+	if [ -n "$(progname_shared)" ] ; then \
 	  $(INSTALL_PROGRAM) ./$(libname).so.$(pkgversion) $(DESTDIR)$(libdir)/$(libname).so.$(pkgversion) ; \
-	  if test -a $(DESTDIR)$(libdir)/$(libname).so.$(soversion) ; then \
+	  if [ -e $(DESTDIR)$(libdir)/$(libname).so.$(soversion) ] ; then \
 	    run_ldconfig=no ; rm -f $(DESTDIR)$(libdir)/$(libname).so.$(soversion) ; \
 	  else run_ldconfig=yes ; \
 	  fi ; \
 	  cd $(DESTDIR)$(libdir) && ln -s $(libname).so.$(pkgversion) $(libname).so.$(soversion) ; \
-	  if test $${run_ldconfig} = yes ; then $(LDCONFIG) $(DESTDIR)$(libdir) ; fi ; \
+	  if [ $${run_ldconfig} = yes ] ; then $(LDCONFIG) $(DESTDIR)$(libdir) ; fi ; \
 	fi
 
 install-info :
-	if test ! -d $(DESTDIR)$(infodir) ; then $(INSTALL_DIR) $(DESTDIR)$(infodir) ; fi
+	if [ ! -d $(DESTDIR)$(infodir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(infodir) ; fi
 	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info $(DESTDIR)$(infodir)/$(pkgname).info
 	-install-info --info-dir=$(DESTDIR)$(infodir) $(DESTDIR)$(infodir)/$(pkgname).info
 
 install-man :
-	if test ! -d $(DESTDIR)$(mandir)/man1 ; then $(INSTALL_DIR) $(DESTDIR)$(mandir)/man1 ; fi
+	if [ ! -d $(DESTDIR)$(mandir)/man1 ] ; then $(INSTALL_DIR) $(DESTDIR)$(mandir)/man1 ; fi
 	$(INSTALL_DATA) $(VPATH)/doc/$(progname).1 $(DESTDIR)$(mandir)/man1/$(progname).1
 
 install-strip : all
@@ -145,6 +146,7 @@ dist :
 clean :
 	-rm -f $(progname) $(progname)_profiled $(objs) $(lib_objs) *.a
 	-rm -f $(progname)_shared $(sh_lib_objs) *.so.$(pkgversion)
+	-rm -f lzcheck.o
 
 distclean : clean
 	-rm -f Makefile config.status *.tar *.tar.lz

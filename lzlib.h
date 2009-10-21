@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-const char * const LZ_version_string = "0.6";
+const char * const LZ_version_string = "0.7";
 
 enum { min_dictionary_bits = 12,
        min_dictionary_size = 1 << min_dictionary_bits,

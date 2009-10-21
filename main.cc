@@ -183,7 +183,7 @@ const char * format_num( long long num, long long limit = 9999,
   }
 
 
-long long getnum( const char * ptr, const int bs,
+long long getnum( const char * ptr, const int bs = 0,
                   const long long llimit = LLONG_MIN + 1,
                   const long long ulimit = LLONG_MAX ) throw()
   {
@@ -462,8 +462,6 @@ int compress( const long long member_size, const long long volume_size,
       if( in_size == 0 ) LZ_compress_finish( encoder );
       else if( in_size != LZ_compress_write( encoder, in_buffer, in_size ) )
         internal_error( "library error" );
-//      for( int i = 0; i < 10000; ++i )
-//        LZ_compress_sync_flush( encoder );
       }
     int out_size = LZ_compress_read( encoder, out_buffer, out_buffer_size );
 //    std::fprintf( stderr, "%6d in_size, %5d out_size.\n", in_size, out_size );
@@ -601,15 +599,15 @@ int decompress( const int inhandle, const Pretty_print & pp,
 extern "C" void signal_handler( int ) throw()
   {
   show_error( "Control-C or similar caught, quitting." );
-  cleanup_and_fail( 0 );
+  cleanup_and_fail( 1 );
   }
 
 
 void set_signals() throw()
   {
-  signal( SIGTERM, signal_handler );
   signal( SIGHUP, signal_handler );
   signal( SIGINT, signal_handler );
+  signal( SIGTERM, signal_handler );
   }
 
 } // end namespace
@@ -838,7 +836,7 @@ int main( const int argc, const char * argv[] )
       const int eindex = extension_index( input_filename );
       inhandle = open_instream( input_filename, &in_stats, program_mode,
                                 eindex, force, to_stdout );
-      if( inhandle < 0 ) continue;
+      if( inhandle < 0 ) { if( retval < 1 ) retval = 1; continue; }
       if( program_mode != m_test )
         {
         if( to_stdout ) outhandle = STDOUT_FILENO;

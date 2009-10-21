@@ -55,6 +55,7 @@ public:
 
 extern const Dis_slots dis_slots;
 
+
 class Prob_prices
   {
   int data[bit_model_total >> 2];
@@ -79,6 +80,7 @@ public:
 
 extern const Prob_prices prob_prices;
 
+
 inline int price0( const Bit_model & bm ) throw()
   { return prob_prices[bm.probability]; }
 
@@ -87,6 +89,7 @@ inline int price1( const Bit_model & bm ) throw()
 
 inline int price_bit( const Bit_model & bm, const int bit ) throw()
   { if( bit ) return price1( bm ); else return price0( bm ); }
+
 
 inline int price_symbol( const Bit_model bm[], int symbol, const int num_bits ) throw()
   {
@@ -100,6 +103,7 @@ inline int price_symbol( const Bit_model bm[], int symbol, const int num_bits ) 
     }
   return price;
   }
+
 
 inline int price_symbol_reversed( const Bit_model bm[], int symbol,
                                   const int num_bits ) throw()
@@ -115,6 +119,7 @@ inline int price_symbol_reversed( const Bit_model bm[], int symbol,
     }
   return price;
   }
+
 
 inline int price_matched( const Bit_model bm[], const int symbol,
                           const int match_byte ) throw()
@@ -424,7 +429,7 @@ class LZ_encoder
     {
     State state;
     int dis;
-    int prev_index;
+    int prev_index;	// index of prev trial in trials[]
     int price;		// dual use var; cumulative price, match length
     int reps[num_rep_distances];
     void update( const int d, const int p_i, const int pr ) throw()
@@ -489,25 +494,18 @@ class LZ_encoder
     return price0( bm_rep0[state()] ) + price0( bm_len[state()][pos_state] );
     }
 
-  int price_rep( const int rep, const int len, const State & state,
+  int price_rep( const int rep, const State & state,
                  const int pos_state ) const throw()
     {
-    int price = rep_match_len_encoder.price( len, pos_state );
-    if( rep == 0 )
-      {
-      price += price0( bm_rep0[state()] );
-      price += price1( bm_len[state()][pos_state] );
-      }
+    if( rep == 0 ) return price0( bm_rep0[state()] ) +
+                          price1( bm_len[state()][pos_state] );
+    int price = price1( bm_rep0[state()] );
+    if( rep == 1 )
+      price += price0( bm_rep1[state()] );
     else
       {
-      price += price1( bm_rep0[state()] );
-      if( rep == 1 )
-        price += price0( bm_rep1[state()] );
-      else
-        {
-        price += price1( bm_rep1[state()] );
-        price += price_bit( bm_rep2[state()], rep - 2 );
-        }
+      price += price1( bm_rep1[state()] );
+      price += price_bit( bm_rep2[state()], rep - 2 );
       }
     return price;
     }

@@ -29,6 +29,11 @@
 #define ULLONG_MAX 0xFFFFFFFFFFFFFFFFULL
 #endif
 
+const int buffer_size = 65536;
+uint8_t in_buffer[buffer_size];
+uint8_t mid_buffer[buffer_size];
+uint8_t out_buffer[buffer_size];
+
 
 int main( const int argc, const char * argv[] )
   {
@@ -38,28 +43,15 @@ int main( const int argc, const char * argv[] )
     return 1;
     }
 
-  FILE *f = std::fopen( argv[1], "rb" );
-  if( !f )
+  FILE *file = std::fopen( argv[1], "rb" );
+  if( !file )
     {
     std::fprintf( stderr, "Can't open file `%s' for reading\n", argv[1] );
     return 1;
     }
+//  std::fprintf( stderr, "lzcheck: testing file `%s'\n", argv[1] );
 
-  const int in_buffer_size = 1 << 20;
-  const int mid_buffer_size = 65536;
-  const int out_buffer_size = in_buffer_size;
-  uint8_t in_buffer[in_buffer_size];
-  uint8_t mid_buffer[mid_buffer_size];
-  uint8_t out_buffer[out_buffer_size];
-  const int in_size = std::fread( in_buffer, 1, in_buffer_size, f );
-  if( in_size >= in_buffer_size )
-    {
-    std::fprintf( stderr, "input file `%s' too big.\n", argv[1] );
-    return 1;
-    }
-  std::fclose( f );
-
-  const int dictionary_size = in_buffer_size;
+  const int dictionary_size = 1 << 20;
   const int match_len_limit = 80;
   const long long member_size = LLONG_MAX;
   void * encoder = LZ_compress_open( dictionary_size, match_len_limit,
@@ -85,27 +77,35 @@ int main( const int argc, const char * argv[] )
     return 1;
     }
 
-  for( int l = 0, r = 0; r < in_size; l = r )
+  while( true )
     {
-    while( ++r < in_size && in_buffer[r-1] != '\n' ) ;
-    LZ_compress_write( encoder, in_buffer + l, r - l );
-    LZ_compress_sync_flush( encoder );
-    int mid_size = LZ_compress_read( encoder, mid_buffer, mid_buffer_size );
-    LZ_decompress_write( decoder, mid_buffer, mid_size );
-    int out_size = LZ_decompress_read( decoder, out_buffer, out_buffer_size );
+    const int read_size = std::fread( in_buffer, 1, buffer_size, file );
+    if( read_size <= 0 ) break;
 
-    if( out_size != r - l || std::memcmp( in_buffer + l, out_buffer, out_size ) )
+    for( int l = 0, r = 1; r <= read_size; l = r, ++r )
       {
-      std::printf( "sync error at pos %d. in_size = %d, out_size = %d\n",
-                   l, r - l, out_size );
-      for( int i = l; i < r; ++i ) std::putchar( in_buffer[i] );
-      if( in_buffer[r-1] != '\n' ) std::putchar( '\n' );
-      for( int i = 0; i < out_size; ++i ) std::putchar( out_buffer[i] );
-      std::putchar( '\n' );
+      while( r < read_size && in_buffer[r-1] != '\n' ) ++r;
+      const int in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
+      if( in_size < r - l ) r = l + in_size;
+      LZ_compress_sync_flush( encoder );
+      const int mid_size = LZ_compress_read( encoder, mid_buffer, buffer_size );
+      LZ_decompress_write( decoder, mid_buffer, mid_size );
+      const int out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
+
+      if( out_size != in_size || std::memcmp( in_buffer + l, out_buffer, out_size ) )
+        {
+        std::printf( "sync error at pos %d. in_size = %d, out_size = %d\n",
+                     l, in_size, out_size );
+        for( int i = 0; i < in_size; ++i ) std::putchar( in_buffer[l+i] );
+        if( in_buffer[l+in_size-1] != '\n' ) std::putchar( '\n' );
+        for( int i = 0; i < out_size; ++i ) std::putchar( out_buffer[i] );
+        std::putchar( '\n' );
+        }
       }
     }
 
   LZ_decompress_close( decoder );
   LZ_compress_close( encoder );
+  std::fclose( file );
   return 0;
   }

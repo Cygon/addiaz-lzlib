@@ -1,3 +1,10 @@
+2009-10-20  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 0.7 released.
+	* Compression time has been reduced by 4%.
+	* testsuite/check.sh: Removed -9 to run in less than 256MiB of RAM.
+	* lzcheck.cc: Read files of any size up to 2^63 bytes.
+
 2009-09-02  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.6 released.

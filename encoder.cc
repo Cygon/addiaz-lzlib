@@ -309,6 +309,7 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
   trials[0].state = state;
   for( int i = 0; i < num_rep_distances; ++i ) trials[0].reps[i] = reps[i];
 
+  const uint8_t prev_byte = matchfinder[-1];
   const uint8_t cur_byte = matchfinder[0];
   const uint8_t match_byte = matchfinder[-reps[0]-1];
   unsigned int position = matchfinder.data_position();
@@ -318,9 +319,9 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
   trials[1].prev_index = 0;
   trials[1].price = price0( bm_match[state()][pos_state] );
   if( state.is_char() )
-    trials[1].price += literal_encoder.price_symbol( matchfinder[-1], cur_byte );
+    trials[1].price += literal_encoder.price_symbol( prev_byte, cur_byte );
   else
-    trials[1].price += literal_encoder.price_matched( matchfinder[-1], cur_byte, match_byte );
+    trials[1].price += literal_encoder.price_matched( prev_byte, cur_byte, match_byte );
 
   const int match_price = price1( bm_match[state()][pos_state] );
   const int rep_match_price = match_price + price1( bm_rep[state()] );
@@ -354,9 +355,13 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
   }
 
   for( int rep = 0; rep < num_rep_distances; ++rep )
+    {
+    const int price = rep_match_price +
+                      price_rep( rep, state, pos_state );
     for( int len = min_match_len; len <= replens[rep]; ++len )
-      trials[len].update( rep, 0, rep_match_price +
-                                  price_rep( rep, len, state, pos_state ) );
+      trials[len].update( rep, 0, price +
+                                  rep_match_len_encoder.price( len, pos_state ) );
+    }
 
   int cur = 0;
   int num_trials = main_len;
@@ -396,14 +401,15 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
       mtf_reps( cur_trial.dis, cur_trial.reps );
       }
 
+    const uint8_t prev_byte = matchfinder[-1];
     const uint8_t cur_byte = matchfinder[0];
     const uint8_t match_byte = matchfinder[-cur_trial.reps[0]-1];
     const int pos_state = ++position & pos_state_mask;
     int next_price = cur_trial.price + price0( bm_match[cur_trial.state()][pos_state] );
     if( cur_trial.state.is_char() )
-      next_price += literal_encoder.price_symbol( matchfinder[-1], cur_byte );
+      next_price += literal_encoder.price_symbol( prev_byte, cur_byte );
     else
-      next_price += literal_encoder.price_matched( matchfinder[-1], cur_byte, match_byte );
+      next_price += literal_encoder.price_matched( prev_byte, cur_byte, match_byte );
     if( !matchfinder.move_pos() ) return 0;
 
     Trial & next_trial = trials[cur+1];
@@ -429,11 +435,13 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
       while( len < len_limit && data[len] == data[len-dis] ) ++len;
       if( len >= min_match_len )
         {
+        const int price = rep_match_price +
+                          price_rep( rep, cur_trial.state, pos_state );
         while( num_trials < cur + len )
           trials[++num_trials].price = infinite_price;
         for( ; len >= min_match_len; --len )
-          trials[cur+len].update( rep, cur, rep_match_price +
-                                  price_rep( rep, len, cur_trial.state, pos_state ) );
+          trials[cur+len].update( rep, cur, price +
+                                  rep_match_len_encoder.price( len, pos_state ) );
         }
       }
 
@@ -447,7 +455,7 @@ int LZ_encoder::best_pair_sequence( const int reps[num_rep_distances],
       while( num_trials < cur + newlen )
         trials[++num_trials].price = infinite_price;
 
-      for( int len = newlen; len >= min_match_len; --len )
+      for( int len = min_match_len; len <= newlen; ++len )
         trials[cur+len].update( match_distances[len] + num_rep_distances, cur,
                                 normal_match_price +
                                 price_pair( match_distances[len], len, pos_state ) );

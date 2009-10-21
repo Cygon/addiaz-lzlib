@@ -5,13 +5,12 @@
 # This configure script is free software: you have unlimited permission
 # to copy, distribute and modify it.
 #
-# Date of this version: 2009-09-02
+# Date of this version: 2009-10-20
 
-invocation_name=$0
 args=
 no_create=
 pkgname=lzlib
-pkgversion=0.6
+pkgversion=0.7
 soversion=0
 progname=minilzip
 progname_shared=${progname}_shared
@@ -129,7 +128,7 @@ if [ x"${srcdir}" = x ] ; then
 	if [ ! -r ${srcdir}/${srctrigger} ] ; then srcdir=.. ; fi
 	if [ ! -r ${srcdir}/${srctrigger} ] ; then
 		## the sed command below emulates the dirname command
-		srcdir=`echo ${invocation_name} | sed -e 's,[^/]*$,,;s,/$,,;s,^$,.,'`
+		srcdir=`echo $0 | sed -e 's,[^/]*$,,;s,/$,,;s,^$,.,'`
 	fi
 fi
 
@@ -178,7 +177,7 @@ if [ x${no_create} = x ] ; then
 # This script is free software: you have unlimited permission
 # to copy, distribute and modify it.
 
-exec /bin/sh ${invocation_name} ${args} --no-create
+exec /bin/sh $0 ${args} --no-create
 EOF
 	chmod +x config.status
 fi
