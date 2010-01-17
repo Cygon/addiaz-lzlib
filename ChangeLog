@@ -1,3 +1,23 @@
+2010-01-17  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 0.8 released.
+	* Added new function LZ_decompress_reset.
+	* Added new function LZ_decompress_sync_to_member.
+	* Added new function LZ_decompress_write_size.
+	* Added new function LZ_strerror.
+	* lzlib.h: API change. Replaced "enum" with functions for values
+	  of dictionary size limits to make interface names consistent.
+	* lzlib.h: API change. "LZ_errno" replaced with "LZ_Errno".
+	* lzlib.h: API change. Replaced "void *" with "struct LZ_Encoder *"
+	  and "struct LZ_Decoder *" to make interface type safe.
+	* decoder.cc: Truncated member trailer is now correctly detected.
+	* encoder.cc: Matchfinder::reset now also clears at_stream_end_,
+	  allowing LZ_compress_restart_member to restart a finished stream.
+	* lzlib.cc: Accept only query or close operations after a fatal
+	  error has occurred.
+	* Shared version of lzlib is no more built by default.
+	* testsuite/check.sh: Use "test1" instead of "COPYING" for testing.
+
 2009-10-20  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.7 released.
@@ -27,7 +47,7 @@
 2009-05-03  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.3 released.
-	* Lzilib is now built as a shared library (in addition to static).
+	* Lzlib is now built as a shared library (in addition to static).
 
 2009-04-26  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
@@ -40,7 +60,7 @@
 	* Version 0.1 released.
 
 
-Copyright (C) 2009 Antonio Diaz Diaz.
+Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
 This file is a collection of facts, and thus it is not copyrightable,
 but just in case, I give you unlimited permission to copy, distribute

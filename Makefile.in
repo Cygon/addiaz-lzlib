@@ -19,23 +19,23 @@ objs        = arg_parser.o main.o
 
 all : $(progname) $(progname_shared)
 
-$(libname).a: $(lib_objs)
-	$(AR) -rcs $(libname).a $(lib_objs)
+lib$(libname).a: $(lib_objs)
+	$(AR) -rcs lib$(libname).a $(lib_objs)
 
-$(libname).so.$(pkgversion) : $(sh_lib_objs)
-	$(CXX) -shared -Wl,--soname=$(libname).so.$(soversion) -o $(libname).so.$(pkgversion) $(sh_lib_objs)
+lib$(libname).so.$(pkgversion) : $(sh_lib_objs)
+	$(CXX) -shared -Wl,--soname=lib$(libname).so.$(soversion) -o lib$(libname).so.$(pkgversion) $(sh_lib_objs)
 
-$(progname) : $(objs) $(libname).a
-	$(CXX) $(LDFLAGS) -o $(progname) $(objs) $(libname).a
+$(progname) : $(objs) lib$(libname).a
+	$(CXX) $(LDFLAGS) -o $(progname) $(objs) lib$(libname).a
 
-$(progname)_shared : $(objs) $(libname).so.$(pkgversion)
-	$(CXX) $(LDFLAGS) -o $(progname)_shared $(objs) $(libname).so.$(pkgversion)
+$(progname)_shared : $(objs) lib$(libname).so.$(pkgversion)
+	$(CXX) $(LDFLAGS) -o $(progname)_shared $(objs) lib$(libname).so.$(pkgversion)
 
-$(progname)_profiled : $(objs) $(libname).a
-	$(CXX) $(LDFLAGS) -pg -o $(progname)_profiled $(objs) $(libname).a
+$(progname)_profiled : $(objs) lib$(libname).a
+	$(CXX) $(LDFLAGS) -pg -o $(progname)_profiled $(objs) lib$(libname).a
 
-lzcheck : lzcheck.o $(libname).a
-	$(CXX) $(LDFLAGS) -o lzcheck lzcheck.o $(libname).a
+lzcheck : lzcheck.o lib$(libname).a
+	$(CXX) $(LDFLAGS) -o lzcheck lzcheck.o lib$(libname).a
 
 main.o : main.cc
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
@@ -61,7 +61,8 @@ sh_decoder.o   : decoder.h
 sh_encoder.o   : encoder.h
 sh_lzlib.o     : decoder.h encoder.h
 arg_parser.o   : Makefile arg_parser.h
-main.o         : Makefile arg_parser.h lzlib.h $(libname).a
+main.o         : Makefile arg_parser.h lzlib.h
+lzcheck.o      : Makefile lzlib.h
 
 
 doc : info man
@@ -80,21 +81,21 @@ $(VPATH)/doc/$(progname).1 : $(progname)
 Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 	./config.status
 
-check : all $(VPATH)/testsuite/check.sh lzcheck
+check : all lzcheck
 	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite
 
 install : all install-info
 	if [ ! -d $(DESTDIR)$(includedir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(includedir) ; fi
 	if [ ! -d $(DESTDIR)$(libdir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(libdir) ; fi
-	$(INSTALL_DATA) $(VPATH)/$(pkgname).h $(DESTDIR)$(includedir)/$(pkgname).h
-	$(INSTALL_DATA) ./$(libname).a $(DESTDIR)$(libdir)/$(libname).a
+	$(INSTALL_DATA) $(VPATH)/$(libname)lib.h $(DESTDIR)$(includedir)/$(libname)lib.h
+	$(INSTALL_DATA) ./lib$(libname).a $(DESTDIR)$(libdir)/lib$(libname).a
 	if [ -n "$(progname_shared)" ] ; then \
-	  $(INSTALL_PROGRAM) ./$(libname).so.$(pkgversion) $(DESTDIR)$(libdir)/$(libname).so.$(pkgversion) ; \
-	  if [ -e $(DESTDIR)$(libdir)/$(libname).so.$(soversion) ] ; then \
-	    run_ldconfig=no ; rm -f $(DESTDIR)$(libdir)/$(libname).so.$(soversion) ; \
+	  $(INSTALL_PROGRAM) ./lib$(libname).so.$(pkgversion) $(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion) ; \
+	  if [ -e $(DESTDIR)$(libdir)/lib$(libname).so.$(soversion) ] ; then \
+	    run_ldconfig=no ; rm -f $(DESTDIR)$(libdir)/lib$(libname).so.$(soversion) ; \
 	  else run_ldconfig=yes ; \
 	  fi ; \
-	  cd $(DESTDIR)$(libdir) && ln -s $(libname).so.$(pkgversion) $(libname).so.$(soversion) ; \
+	  cd $(DESTDIR)$(libdir) && ln -s lib$(libname).so.$(pkgversion) lib$(libname).so.$(soversion) ; \
 	  if [ $${run_ldconfig} = yes ] ; then $(LDCONFIG) $(DESTDIR)$(libdir) ; fi ; \
 	fi
 
@@ -111,10 +112,10 @@ install-strip : all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
 uninstall : uninstall-info
-	-rm -f $(DESTDIR)$(includedir)/$(pkgname).h
-	-rm -f $(DESTDIR)$(libdir)/$(libname).a
-	-rm -f $(DESTDIR)$(libdir)/$(libname).so.$(soversion)
-	-rm -f $(DESTDIR)$(libdir)/$(libname).so.$(pkgversion)
+	-rm -f $(DESTDIR)$(includedir)/$(libname)lib.h
+	-rm -f $(DESTDIR)$(libdir)/lib$(libname).a
+	-rm -f $(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)
+	-rm -f $(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)
 
 uninstall-info :
 	-install-info --info-dir=$(DESTDIR)$(infodir) --remove $(DESTDIR)$(infodir)/$(pkgname).info
@@ -123,7 +124,7 @@ uninstall-info :
 uninstall-man :
 	-rm -f $(DESTDIR)$(mandir)/man1/$(progname).1
 
-dist :
+dist : doc
 	ln -sf $(VPATH) $(DISTNAME)
 	tar -cvf $(DISTNAME).tar \
 	  $(DISTNAME)/AUTHORS \
@@ -136,8 +137,9 @@ dist :
 	  $(DISTNAME)/configure \
 	  $(DISTNAME)/doc/$(pkgname).info \
 	  $(DISTNAME)/doc/$(pkgname).texinfo \
-	  $(DISTNAME)/testsuite/COPYING.lz \
 	  $(DISTNAME)/testsuite/check.sh \
+	  $(DISTNAME)/testsuite/test1 \
+	  $(DISTNAME)/testsuite/test1.lz \
 	  $(DISTNAME)/*.h \
 	  $(DISTNAME)/*.cc
 	rm -f $(DISTNAME)

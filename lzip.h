@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
     As a special exception, you may use this file as part of a free
     software library without restriction.  Specifically, if other files
@@ -58,6 +58,10 @@ public:
   };
 
 
+const int min_dictionary_bits = 12;
+const int min_dictionary_size = 1 << min_dictionary_bits;
+const int max_dictionary_bits = 29;
+const int max_dictionary_size = 1 << max_dictionary_bits;
 const int literal_context_bits = 3;
 const int pos_state_bits = 2;
 const int pos_states = 1 << pos_state_bits;
@@ -80,6 +84,7 @@ const int max_len_symbols = len_low_symbols + len_mid_symbols + len_high_symbols
 
 const int min_match_len = 2;		// must be 2
 const int max_match_len = min_match_len + max_len_symbols - 1;	// 273
+const int min_match_len_limit = 5;
 
 const int max_dis_states = 4;
 
@@ -150,6 +155,13 @@ struct File_header
   bool verify_version() const throw()
     {
     return ( version <= 1 );
+    }
+
+  bool verify() const throw()
+    {
+    return ( verify_magic() && verify_version() &&
+             dictionary_size() >= min_dictionary_size &&
+             dictionary_size() <= max_dictionary_size );
     }
 
   static int real_bits( const int value ) throw()
@@ -241,9 +253,9 @@ struct File_trailer
 class Circular_buffer
   {
 protected:
-  const int buffer_size;
+  const int buffer_size;	// capacity == buffer_size - 1
   uint8_t * const buffer;
-  int get;
+  int get;			// buffer is empty when get == put
   int put;
 
   void reset() throw() { get = 0; put = 0; }

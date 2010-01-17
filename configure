@@ -1,21 +1,21 @@
 #! /bin/sh
 # configure script for Lzlib - A compression library for lzip files
-# Copyright (C) 2009 Antonio Diaz Diaz.
+# Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 #
 # This configure script is free software: you have unlimited permission
 # to copy, distribute and modify it.
 #
-# Date of this version: 2009-10-20
+# Date of this version: 2010-01-17
 
 args=
 no_create=
 pkgname=lzlib
-pkgversion=0.7
+pkgversion=0.8
 soversion=0
 progname=minilzip
-progname_shared=${progname}_shared
-libname=liblz
-srctrigger=${pkgname}.h
+progname_shared=
+libname=lz
+srctrigger=${libname}lib.h
 
 # clear some things potentially inherited from environment.
 LC_ALL=C
@@ -30,15 +30,13 @@ infodir='$(datadir)/info'
 libdir='${exec_prefix}/lib'
 mandir='$(datadir)/man'
 sysconfdir='$(prefix)/etc'
-CC=
 CXX=
 CPPFLAGS=
-CFLAGS='-Wall -W -O2'
 CXXFLAGS='-Wall -W -O2'
 LDFLAGS=
 
 # Loop over all args
-while [ x"$1" != x ] ; do
+while [ -n "$1" ] ; do
 
 	# Get the first arg, and shuffle
 	option=$1
@@ -70,11 +68,9 @@ while [ x"$1" != x ] ; do
 		echo "  --libdir=DIR          object code libraries [${libdir}]"
 		echo "  --mandir=DIR          man pages directory [${mandir}]"
 		echo "  --sysconfdir=DIR      read-only single-machine data directory [${sysconfdir}]"
-		echo "  --disable-shared      do not build a shared library [enable]"
-		echo "  CC=COMPILER           C compiler to use [gcc]"
+		echo "  --enable-shared       build also a shared library [disable]"
 		echo "  CXX=COMPILER          C++ compiler to use [g++]"
 		echo "  CPPFLAGS=OPTIONS      command line options for the preprocessor [${CPPFLAGS}]"
-		echo "  CFLAGS=OPTIONS        command line options for the C compiler [${CFLAGS}]"
 		echo "  CXXFLAGS=OPTIONS      command line options for the C++ compiler [${CXXFLAGS}]"
 		echo "  LDFLAGS=OPTIONS       command line options for the linker [${LDFLAGS}]"
 		echo
@@ -104,13 +100,11 @@ while [ x"$1" != x ] ; do
 		sysconfdir=`echo ${optarg} | sed -e 's,/$,,'` ;;
 	--no-create | --no-c*)
 		no_create=yes ;;
-	--disable-shared | --disable-s*)
-		progname_shared= ;;
+	--enable-shared | --enable-s*)
+		progname_shared=${progname}_shared ;;
 
-	CC=*)       CC=${optarg} ;;
 	CXX=*)      CXX=${optarg} ;;
 	CPPFLAGS=*) CPPFLAGS=${optarg} ;;
-	CFLAGS=*)   CFLAGS=${optarg} ;;
 	CXXFLAGS=*) CXXFLAGS=${optarg} ;;
 	LDFLAGS=*)  LDFLAGS=${optarg} ;;
 
@@ -123,7 +117,7 @@ done
 
 # Find the source files, if location was not specified.
 srcdirtext=
-if [ x"${srcdir}" = x ] ; then
+if [ -z "${srcdir}" ] ; then
 	srcdirtext="or . or .." ; srcdir=.
 	if [ ! -r ${srcdir}/${srctrigger} ] ; then srcdir=.. ; fi
 	if [ ! -r ${srcdir}/${srctrigger} ] ; then
@@ -143,19 +137,8 @@ fi
 # Set srcdir to . if that's what it is.
 if [ "`pwd`" = "`cd ${srcdir} ; pwd`" ] ; then srcdir=. ; fi
 
-# checking whether we are using GNU C.
-if [ x"${CC}" = x ] ; then		# Let the user override the test.
-	if [ -x /bin/gcc ] ||
-	   [ -x /usr/bin/gcc ] ||
-	   [ -x /usr/local/bin/gcc ] ; then
-		CC="gcc"
-	else
-		CC="cc"
-	fi
-fi
-
 # checking whether we are using GNU C++.
-if [ x"${CXX}" = x ] ; then		# Let the user override the test.
+if [ -z "${CXX}" ] ; then		# Let the user override the test.
 	if [ -x /bin/g++ ] ||
 	   [ -x /usr/bin/g++ ] ||
 	   [ -x /usr/local/bin/g++ ] ; then
@@ -166,7 +149,7 @@ if [ x"${CXX}" = x ] ; then		# Let the user override the test.
 fi
 
 echo
-if [ x${no_create} = x ] ; then
+if [ -z ${no_create} ] ; then
 	echo "creating config.status"
 	rm -f config.status
 	cat > config.status << EOF
@@ -193,16 +176,14 @@ echo "infodir = ${infodir}"
 echo "libdir = ${libdir}"
 echo "mandir = ${mandir}"
 echo "sysconfdir = ${sysconfdir}"
-echo "CC = ${CC}"
 echo "CXX = ${CXX}"
 echo "CPPFLAGS = ${CPPFLAGS}"
-echo "CFLAGS = ${CFLAGS}"
 echo "CXXFLAGS = ${CXXFLAGS}"
 echo "LDFLAGS = ${LDFLAGS}"
 rm -f Makefile
 cat > Makefile << EOF
 # Makefile for Lzlib - A compression library for lzip files
-# Copyright (C) 2009 Antonio Diaz Diaz.
+# Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 # This file was generated automatically by configure. Do not edit.
 #
 # This Makefile is free software: you have unlimited permission
@@ -224,10 +205,8 @@ infodir = ${infodir}
 libdir = ${libdir}
 mandir = ${mandir}
 sysconfdir = ${sysconfdir}
-CC = ${CC}
 CXX = ${CXX}
 CPPFLAGS = ${CPPFLAGS}
-CFLAGS = ${CFLAGS}
 CXXFLAGS = ${CXXFLAGS}
 LDFLAGS = ${LDFLAGS}
 EOF

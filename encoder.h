@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
     As a special exception, you may use this file as part of a free
     software library without restriction.  Specifically, if other files
@@ -186,7 +186,8 @@ public:
   int dictionary_size() const throw() { return dictionary_size_; }
   void flushing( const bool b ) throw() { at_stream_end_ = b; }
   bool finished() const throw() { return at_stream_end_ && pos >= stream_pos; }
-  int free_bytes() const throw() { return buffer_size - stream_pos; }
+  int free_bytes() const throw()
+    { if( at_stream_end_ ) return 0; return buffer_size - stream_pos; }
   int match_len_limit() const throw() { return match_len_limit_; }
   const uint8_t * ptr_to_current_pos() const throw() { return buffer + pos; }
 
@@ -234,14 +235,14 @@ class Range_encoder : public Circular_buffer
   void shift_low()
     {
     const uint32_t carry = low >> 32;
-    if( low < 0xFF000000 || carry == 1 )
+    if( low < 0xFF000000LL || carry == 1 )
       {
       put_byte( cache + carry );
       for( ; ff_count > 0; --ff_count ) put_byte( 0xFF + carry );
       cache = low >> 24;
       }
     else ++ff_count;
-    low = ( low & 0x00FFFFFF ) << 8;
+    low = ( low & 0x00FFFFFFLL ) << 8;
     }
 
 public:

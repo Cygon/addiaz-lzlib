@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
     As a special exception, you may use this file as part of a free
     software library without restriction.  Specifically, if other files
@@ -39,7 +39,13 @@ public:
   bool at_stream_end() const throw() { return at_stream_end_; }
   void finish() throw() { at_stream_end_ = true; }
   bool finished() const throw() { return at_stream_end_ && !used_bytes(); }
+  int free_bytes() const throw()
+    { if( at_stream_end_ ) return 0; return Circular_buffer::free_bytes(); }
   void purge() throw() { at_stream_end_ = true; Circular_buffer::reset(); }
+  void reset() throw() { at_stream_end_ = false; Circular_buffer::reset(); }
+
+  bool find_header() throw();
+  bool read_header( File_header & header ) throw();
 
   bool enough_available_bytes() const throw()
     {

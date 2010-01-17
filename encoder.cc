@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
     As a special exception, you may use this file as part of a free
     software library without restriction.  Specifically, if other files
@@ -31,8 +31,6 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <vector>
 #include <stdint.h>
 
 #include "lzlib.h"
@@ -87,11 +85,12 @@ Matchfinder::Matchfinder( const int dict_size, const int len_limit )
 void Matchfinder::reset() throw()
   {
   const int size = stream_pos - pos;
-  std::memmove( buffer, buffer + pos, size );
+  if( size > 0 ) std::memmove( buffer, buffer + pos, size );
   partial_data_pos = 0;
   stream_pos -= pos;
   pos = 0;
   cyclic_pos = 0;
+  at_stream_end_ = false;
   for( int i = 0; i < num_prev_positions; ++i ) prev_positions[i] = -1;
   }
 

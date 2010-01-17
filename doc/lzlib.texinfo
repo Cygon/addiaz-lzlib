@@ -5,8 +5,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 20 October 2009
-@set VERSION 0.7
+@set UPDATED 17 January 2010
+@set VERSION 0.8
 
 @dircategory Data Compression
 @direntry
@@ -35,9 +35,11 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 * Introduction::		Purpose and features of Lzlib
 * Library Version::		Checking library version
 * Buffering::			Sizes of Lzlib's buffers
+* Parameter Limits::		Min / max values for some parameters
 * Compression Functions::	Descriptions of the compression functions
 * Decompression Functions::	Descriptions of the decompression functions
 * Error Codes::			Meaning of codes returned by functions
+* Error Messages::		Error messages corresponding to error codes
 * Data Format::			Detailed format of the compressed data
 * Examples::			A small tutorial with examples
 * Problems::			Reporting bugs
@@ -45,7 +47,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009 Antonio Diaz Diaz.
+Copyright @copyright{} 2009, 2010 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -139,9 +141,41 @@ is larger.
 
 @item Output decompression buffer. Read from by the
 @samp{LZ_decompress_read} function. Its size is the dictionary size set
-with the @samp{LZ_decompress_open} function or 64KiB, whichever is
-larger.
+in the header of the member currently being decompressed or 64KiB,
+whichever is larger.
 @end itemize
+
+
+@node Parameter Limits
+@chapter Parameter Limits
+@cindex parameter limits
+
+These functions provide minimum and maximum values for some parameters.
+Current values are shown in square brackets.
+
+@deftypefun int LZ_min_dictionary_bits ( void )
+Returns the base 2 logarithm of the smallest valid dictionary size [12].
+@end deftypefun
+
+@deftypefun int LZ_min_dictionary_size ( void )
+Returns the smallest valid dictionary size [4KiB].
+@end deftypefun
+
+@deftypefun int LZ_max_dictionary_bits ( void )
+Returns the base 2 logarithm of the largest valid dictionary size [29].
+@end deftypefun
+
+@deftypefun int LZ_max_dictionary_size ( void )
+Returns the largest valid dictionary size [512MiB].
+@end deftypefun
+
+@deftypefun int LZ_min_match_len_limit ( void )
+Returns the smallest valid match length limit [5].
+@end deftypefun
+
+@deftypefun int LZ_max_match_len_limit ( void )
+Returns the largest valid match length limit [273].
+@end deftypefun
 
 
 @node Compression Functions
@@ -153,10 +187,11 @@ them return -1, except @samp{LZ_compress_open} whose return value must
 be verified by calling @samp{LZ_compress_errno} before using it.
 
 
-@deftypefun {void *} LZ_compress_open ( const int @var{dictionary_size}, const int @var{match_len_limit}, const long long @var{member_size} )
+@deftypefun {struct LZ_Encoder *} LZ_compress_open ( const int @var{dictionary_size}, const int @var{match_len_limit}, const long long @var{member_size} )
 Initializes the internal stream state for compression and returns a
 pointer that can only be used as the @var{encoder} argument for the
-other LZ_compress functions.
+other LZ_compress functions, or a null pointer if the encoder could not
+be allocated.
 
 The returned pointer must be verified by calling
 @samp{LZ_compress_errno} before using it. If @samp{LZ_compress_errno}
@@ -180,15 +215,7 @@ for example LLONG_MAX.
 @end deftypefun
 
 
-@deftypefun int LZ_compress_restart_member ( void * const @var{encoder}, const long long @var{member_size} )
-Use this function to start a new member, in a multimember data stream.
-Call this function only after @samp{LZ_compress_member_finished}
-indicates that the current member has been fully read (with the
-@samp{LZ_compress_read} function).
-@end deftypefun
-
-
-@deftypefun int LZ_compress_close ( void * const @var{encoder} )
+@deftypefun int LZ_compress_close ( struct LZ_Encoder * const @var{encoder} )
 Frees all dynamically allocated data structures for this stream. This
 function discards any unprocessed input and does not flush any pending
 output. After a call to @samp{LZ_compress_close}, @var{encoder} can no
@@ -196,13 +223,24 @@ more be used as an argument to any LZ_compress function.
 @end deftypefun
 
 
-@deftypefun int LZ_compress_finish ( void * const @var{encoder} )
-Use this function to tell @samp{lzlib} that all the data for this stream
+@deftypefun int LZ_compress_finish ( struct LZ_Encoder * const @var{encoder} )
+Use this function to tell @samp{lzlib} that all the data for this member
 has already been written (with the @samp{LZ_compress_write} function).
+After all the produced compressed data has been read with
+@samp{LZ_compress_read} and @samp{LZ_compress_member_finished} returns
+1, a new member can be started with @samp{LZ_compress_restart_member}.
 @end deftypefun
 
 
-@deftypefun int LZ_compress_sync_flush ( void * const @var{encoder} )
+@deftypefun int LZ_compress_restart_member ( struct LZ_Encoder * const @var{encoder}, const long long @var{member_size} )
+Use this function to start a new member, in a multimember data stream.
+Call this function only after @samp{LZ_compress_member_finished}
+indicates that the current member has been fully read (with the
+@samp{LZ_compress_read} function).
+@end deftypefun
+
+
+@deftypefun int LZ_compress_sync_flush ( struct LZ_Encoder * const @var{encoder} )
 Use this function to make available to @samp{LZ_compress_read} all the
 data already written with the @samp{LZ_compress_write} function.
 Repeated use of @samp{LZ_compress_sync_flush} may degrade compression
@@ -210,7 +248,7 @@ ratio, so use it only when needed.
 @end deftypefun
 
 
-@deftypefun int LZ_compress_read ( void * const @var{encoder}, uint8_t * const @var{buffer}, const int @var{size} )
+@deftypefun int LZ_compress_read ( struct LZ_Encoder * const @var{encoder}, uint8_t * const @var{buffer}, const int @var{size} )
 The @samp{LZ_compress_read} function reads up to @var{size} bytes from
 the stream pointed to by @var{encoder}, storing the results in
 @var{buffer}.
@@ -223,7 +261,7 @@ in the stream or if more bytes have to be yet written with the
 @end deftypefun
 
 
-@deftypefun int LZ_compress_write ( void * const @var{encoder}, uint8_t * const @var{buffer}, const int @var{size} )
+@deftypefun int LZ_compress_write ( struct LZ_Encoder * const @var{encoder}, uint8_t * const @var{buffer}, const int @var{size} )
 The @samp{LZ_compress_write} function writes up to @var{size} bytes from
 @var{buffer} to the stream pointed to by @var{encoder}.
 
@@ -233,7 +271,7 @@ not an error.
 @end deftypefun
 
 
-@deftypefun int LZ_compress_write_size ( void * const @var{encoder} )
+@deftypefun int LZ_compress_write_size ( struct LZ_Encoder * const @var{encoder} )
 The @samp{LZ_compress_write_size} function returns the maximum number of
 bytes that can be inmediately written through the @samp{LZ_compress_write}
 function.
@@ -243,42 +281,42 @@ accept a @var{size} up to the returned number of bytes.
 @end deftypefun
 
 
-@deftypefun {enum LZ_errno} LZ_compress_errno ( void * const @var{encoder} )
+@deftypefun {enum LZ_Errno} LZ_compress_errno ( struct LZ_Encoder * const @var{encoder} )
 Returns the current error code for @var{encoder} (@pxref{Error Codes})
 @end deftypefun
 
 
-@deftypefun int LZ_compress_finished ( void * const @var{encoder} )
+@deftypefun int LZ_compress_finished ( struct LZ_Encoder * const @var{encoder} )
 Returns 1 if all the data has been read and @samp{LZ_compress_close} can
 be safely called. Otherwise it returns 0.
 @end deftypefun
 
 
-@deftypefun int LZ_compress_member_finished ( void * const @var{encoder} )
+@deftypefun int LZ_compress_member_finished ( struct LZ_Encoder * const @var{encoder} )
 Returns 1 if the current member, in a multimember data stream, has been
 fully read and @samp{LZ_compress_restart_member} can be safely called.
 Otherwise it returns 0.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_data_position ( void * const @var{encoder} )
+@deftypefun {long long} LZ_compress_data_position ( struct LZ_Encoder * const @var{encoder} )
 Returns the number of input bytes already compressed in the current
 member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_member_position ( void * const @var{encoder} )
+@deftypefun {long long} LZ_compress_member_position ( struct LZ_Encoder * const @var{encoder} )
 Returns the number of compressed bytes already produced, but perhaps not
 yet read, in the current member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_total_in_size ( void * const @var{encoder} )
+@deftypefun {long long} LZ_compress_total_in_size ( struct LZ_Encoder * const @var{encoder} )
 Returns the total number of input bytes already compressed.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_total_out_size ( void * const @var{encoder} )
+@deftypefun {long long} LZ_compress_total_out_size ( struct LZ_Encoder * const @var{encoder} )
 Returns the total number of compressed bytes already produced, but
 perhaps not yet read.
 @end deftypefun
@@ -293,10 +331,11 @@ of them return -1, except @samp{LZ_decompress_open} whose return value
 must be verified by calling @samp{LZ_decompress_errno} before using it.
 
 
-@deftypefun {void *} LZ_decompress_open ( void )
+@deftypefun {struct LZ_Decoder *} LZ_decompress_open ( void )
 Initializes the internal stream state for decompression and returns a
 pointer that can only be used as the @var{decoder} argument for the
-other LZ_decompress functions.
+other LZ_decompress functions, or a null pointer if the decoder could
+not be allocated.
 
 The returned pointer must be verified by calling
 @samp{LZ_decompress_errno} before using it. If
@@ -306,7 +345,7 @@ pointer must not be used and should be freed with
 @end deftypefun
 
 
-@deftypefun int LZ_decompress_close ( void * const @var{decoder} )
+@deftypefun int LZ_decompress_close ( struct LZ_Decoder * const @var{decoder} )
 Frees all dynamically allocated data structures for this stream. This
 function discards any unprocessed input and does not flush any pending
 output. After a call to @samp{LZ_decompress_close}, @var{decoder} can no
@@ -314,13 +353,34 @@ more be used as an argument to any LZ_decompress function.
 @end deftypefun
 
 
-@deftypefun int LZ_decompress_finish ( void * const @var{decoder} )
+@deftypefun int LZ_decompress_finish ( struct LZ_Decoder * const @var{decoder} )
 Use this function to tell @samp{lzlib} that all the data for this stream
 has already been written (with the @samp{LZ_decompress_write} function).
 @end deftypefun
 
 
-@deftypefun int LZ_decompress_read ( void * const @var{decoder}, uint8_t * const @var{buffer}, const int @var{size} )
+@deftypefun int LZ_decompress_reset ( struct LZ_Decoder * const @var{decoder} )
+Resets the internal state of @var{decoder} as it was just after opening
+it with the @samp{LZ_decompress_open} function. Data stored in the
+internal buffers is discarded. Position counters are set to 0.
+@end deftypefun
+
+
+@deftypefun int LZ_decompress_sync_to_member ( struct LZ_Decoder * const @var{decoder} )
+Resets the error state of @var{decoder} and enters a search state that
+lasts until a new member header (or the end of the stream) is found.
+After a successful call to @samp{LZ_decompress_sync_to_member}, data
+written with @samp{LZ_decompress_write} will be consumed and
+@samp{LZ_decompress_read} will return 0 until a header is found.
+
+This function is useful to discard any data preceding the first member,
+or to discard the rest of the current member, for example in case of a
+data error. If the decoder is already at the beginning of a member, this
+function does nothing.
+@end deftypefun
+
+
+@deftypefun int LZ_decompress_read ( struct LZ_Decoder * const @var{decoder}, uint8_t * const @var{buffer}, const int @var{size} )
 The @samp{LZ_decompress_read} function reads up to @var{size} bytes from
 the stream pointed to by @var{decoder}, storing the results in
 @var{buffer}.
@@ -333,7 +393,7 @@ in the stream or if more bytes have to be yet written with the
 @end deftypefun
 
 
-@deftypefun int LZ_decompress_write ( void * const @var{decoder}, uint8_t * const @var{buffer}, const int @var{size} )
+@deftypefun int LZ_decompress_write ( struct LZ_Decoder * const @var{decoder}, uint8_t * const @var{buffer}, const int @var{size} )
 The @samp{LZ_decompress_write} function writes up to @var{size} bytes from
 @var{buffer} to the stream pointed to by @var{decoder}.
 
@@ -343,35 +403,45 @@ not an error.
 @end deftypefun
 
 
-@deftypefun {enum LZ_errno} LZ_decompress_errno ( void * const @var{decoder} )
+@deftypefun int LZ_decompress_write_size ( struct LZ_Decoder * const @var{decoder} )
+The @samp{LZ_decompress_write_size} function returns the maximum number
+of bytes that can be inmediately written through the
+@samp{LZ_decompress_write} function.
+
+It is guaranteed that an inmediate call to @samp{LZ_decompress_write}
+will accept a @var{size} up to the returned number of bytes.
+@end deftypefun
+
+
+@deftypefun {enum LZ_Errno} LZ_decompress_errno ( struct LZ_Decoder * const @var{decoder} )
 Returns the current error code for @var{decoder} (@pxref{Error Codes})
 @end deftypefun
 
 
-@deftypefun int LZ_decompress_finished ( void * const @var{decoder} )
+@deftypefun int LZ_decompress_finished ( struct LZ_Decoder * const @var{decoder} )
 Returns 1 if all the data has been read and @samp{LZ_decompress_close}
 can be safely called. Otherwise it returns 0.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_data_position ( void * const @var{decoder} )
+@deftypefun {long long} LZ_decompress_data_position ( struct LZ_Decoder * const @var{decoder} )
 Returns the number of decompressed bytes already produced, but perhaps
 not yet read, in the current member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_member_position ( void * const @var{decoder} )
+@deftypefun {long long} LZ_decompress_member_position ( struct LZ_Decoder * const @var{decoder} )
 Returns the number of input bytes already decompressed in the current
 member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_total_in_size ( void * const @var{decoder} )
+@deftypefun {long long} LZ_decompress_total_in_size ( struct LZ_Decoder * const @var{decoder} )
 Returns the total number of input bytes already decompressed.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_total_out_size ( void * const @var{decoder} )
+@deftypefun {long long} LZ_decompress_total_out_size ( struct LZ_Decoder * const @var{decoder} )
 Returns the total number of decompressed bytes already produced, but
 perhaps not yet read.
 @end deftypefun
@@ -395,44 +465,59 @@ examine @samp{LZ_(de)compress_errno}.
 
 The error codes are defined in the header file @samp{lzlib.h}.
 
-@deftypevr Constant {enum LZ_errno} LZ_ok
+@deftypevr Constant {enum LZ_Errno} LZ_ok
 The value of this constant is 0 and is used to indicate that there is no
 error.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_bad_argument
+@deftypevr Constant {enum LZ_Errno} LZ_bad_argument
 At least one of the arguments passed to the library function was
 invalid.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_mem_error
+@deftypevr Constant {enum LZ_Errno} LZ_mem_error
 No memory available. The system cannot allocate more virtual memory
 because its capacity is full.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_sequence_error
+@deftypevr Constant {enum LZ_Errno} LZ_sequence_error
 A library function was called in the wrong order. For example
 @samp{LZ_compress_restart_member} was called before
 @samp{LZ_compress_member_finished} indicates that the current member is
 finished.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_header_error
+@deftypevr Constant {enum LZ_Errno} LZ_header_error
 Reading of member header failed. If this happens at the end of the data
 stream it may indicate trailing garbage.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_unexpected_eof
+@deftypevr Constant {enum LZ_Errno} LZ_unexpected_eof
 The end of the data stream was reached in the middle of a member.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_data_error
+@deftypevr Constant {enum LZ_Errno} LZ_data_error
 The data stream is corrupt.
 @end deftypevr
 
-@deftypevr Constant {enum LZ_errno} LZ_library_error
+@deftypevr Constant {enum LZ_Errno} LZ_library_error
 A bug was detected in the library. Please, report it (@pxref{Problems}).
 @end deftypevr
+
+
+@node Error Messages
+@chapter Error Messages
+@cindex error messages
+
+@deftypefun {const char *} LZ_strerror ( const enum LZ_Errno @var{lz_errno} )
+Returns the standard error message for a given error code. The messages
+are fairly short; there are no multi-line messages or embedded newlines.
+This function makes it easy for your program to report informative error
+messages about the failure of a library call.
+
+The value of @var{lz_errno} normally comes from a call to
+@samp{LZ_(de)compress_errno}.
+@end deftypefun
 
 
 @node Data Format
@@ -528,7 +613,22 @@ Example 1: Normal compression (@var{member_size} > total output).
 
 @sp 1
 @noindent
-Example 2: Decompression.
+Example 2: Normal compression using LZ_compress_write_size.
+
+@example
+1) LZ_compress_open
+2) go to step 5 if LZ_compress_write_size returns 0
+3) LZ_compress_write
+4) if no more data to write, call LZ_compress_finish
+5) LZ_compress_read
+6) go back to step 2 until LZ_compress_finished returns 1
+7) LZ_compress_close
+@end example
+
+
+@sp 1
+@noindent
+Example 3: Decompression.
 
 @example
 1) LZ_decompress_open
@@ -544,19 +644,87 @@ Example 2: Decompression.
 
 @sp 1
 @noindent
-Example 3: Multimember compression (@var{member_size} < total output).
+Example 4: Decompression using LZ_decompress_write_size.
+
+@example
+1) LZ_decompress_open
+2) go to step 5 if LZ_decompress_write_size returns 0
+3) LZ_decompress_write
+4) if no more data to write, call LZ_decompress_finish
+5) LZ_decompress_read
+6) go back to step 2 until LZ_decompress_finished returns 1
+7) LZ_decompress_close
+@end example
+
+
+@sp 1
+@noindent
+Example 5: Multimember compression (@var{member_size} < total output).
+
+@example
+ 1) LZ_compress_open
+ 2) go to step 5 if LZ_compress_write_size returns 0
+ 3) LZ_compress_write
+ 4) if no more data to write, call LZ_compress_finish
+ 5) LZ_compress_read
+ 6) go back to step 2 until LZ_compress_member_finished returns 1
+ 7) go to step 10 if LZ_compress_finished() returns 1
+ 8) LZ_compress_restart_member
+ 9) go back to step 2
+10) LZ_compress_close
+@end example
+
+
+@sp 1
+@noindent
+Example 6: Multimember compression (user-restarted members).
 
 @example
  1) LZ_compress_open
  2) LZ_compress_write
  3) LZ_compress_read
- 4) go back to step 2 until LZ_compress_member_finished returns 1
- 5) LZ_compress_restart_member
- 6) go back to step 2 until all input data has been written
- 7) LZ_compress_finish
- 8) LZ_compress_read
- 9) go back to step 8 until LZ_compress_finished returns 1
-10) LZ_compress_close
+ 4) go back to step 2 until member termination is desired
+ 5) LZ_compress_finish
+ 6) LZ_compress_read
+ 7) go back to step 6 until LZ_compress_member_finished returns 1
+ 8) verify that LZ_compress_finished returns 1
+ 9) go to step 12 if all input data has been written
+10) LZ_compress_restart_member
+11) go back to step 2
+12) LZ_compress_close
+@end example
+
+
+@sp 1
+@noindent
+Example 7: Decompression with automatic removal of leading garbage.
+
+@example
+1) LZ_decompress_open
+2) LZ_decompress_sync_to_member
+3) go to step 6 if LZ_decompress_write_size returns 0
+4) LZ_decompress_write
+5) if no more data to write, call LZ_decompress_finish
+6) LZ_decompress_read
+7) go back to step 3 until LZ_decompress_finished returns 1
+8) LZ_decompress_close
+@end example
+
+
+@sp 1
+@noindent
+Example 8: Streamed decompression with automatic resynchronization to
+next member in case of data error.
+
+@example
+1) LZ_decompress_open
+2) go to step 5 if LZ_decompress_write_size returns 0
+3) LZ_decompress_write
+4) if no more data to write, call LZ_decompress_finish
+5) if LZ_decompress_read produces LZ_header_error or LZ_data_error,
+   call LZ_decompress_sync_to_member
+6) go back to step 2 until LZ_decompress_finished returns 1
+7) LZ_decompress_close
 @end example
 
 

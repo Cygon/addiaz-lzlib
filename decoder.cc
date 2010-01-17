@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
     As a special exception, you may use this file as part of a free
     software library without restriction.  Specifically, if other files
@@ -31,8 +31,6 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <vector>
 #include <stdint.h>
 
 #include "lzlib.h"
@@ -42,7 +40,8 @@
 
 const CRC32 crc32;
 
-
+// Copies up to `out_size' bytes to `out_buffer' and updates `get'.
+// Returns the number of bytes copied.
 int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size ) throw()
   {
   int size = 0;
@@ -70,6 +69,8 @@ int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size )
   }
 
 
+// Copies up to `in_size' bytes from `in_buffer' and updates `put'.
+// Returns the number of bytes copied.
 int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
   {
   int size = 0;
@@ -94,6 +95,47 @@ int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_s
       }
     }
   return size;
+  }
+
+
+// Seeks a member header and updates `get'.
+// Returns true if it finds a valid header.
+bool Input_buffer::find_header() throw()
+  {
+  while( get != put )
+    {
+    if( buffer[get] == magic_string[0] )
+      {
+      int g = get;
+      File_header header;
+      for( unsigned int i = 0; i < sizeof header; ++i )
+        {
+        if( g == put ) return false;		// not enough data
+        ((uint8_t *)&header)[i] = buffer[g];
+        if( ++g >= buffer_size ) g = 0;
+        }
+      if( header.verify() ) return true;
+      }
+    if( ++get >= buffer_size ) get = 0;
+    }
+  return false;
+  }
+
+
+// Returns true, fills `header', and updates `get' if `get' points to a
+// valid header.
+// Else returns false and leaves `get' unmodified.
+bool Input_buffer::read_header( File_header & header ) throw()
+  {
+  int g = get;
+  for( unsigned int i = 0; i < sizeof header; ++i )
+    {
+    if( g == put ) return false;		// not enough data
+    ((uint8_t *)&header)[i] = buffer[g];
+    if( ++g >= buffer_size ) g = 0;
+    }
+  if( header.verify() ) { get = g; return true; }
+  return false;
   }
 
 
@@ -125,7 +167,8 @@ int LZ_decoder::decode_member()
   if( !range_decoder.try_reload() ) return 0;
   if( verify_trailer_pending )
     {
-    if( range_decoder.available_bytes() < File_trailer::size( format_version ) )
+    if( range_decoder.available_bytes() < File_trailer::size( format_version ) &&
+        !range_decoder.at_stream_end() )
       return 0;
     verify_trailer_pending = false;
     member_finished_ = true;
@@ -201,7 +244,8 @@ int LZ_decoder::decode_member()
               range_decoder.normalize();
               if( len == min_match_len )	// End Of Stream marker
                 {
-                if( range_decoder.available_bytes() < File_trailer::size( format_version ) )
+                if( range_decoder.available_bytes() < File_trailer::size( format_version ) &&
+                    !range_decoder.at_stream_end() )
                   { verify_trailer_pending = true; return 0; }
                 member_finished_ = true;
                 if( verify_trailer() ) return 0; else return 3;

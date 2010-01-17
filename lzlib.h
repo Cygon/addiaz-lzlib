@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    along with this library.  If not, see <http://www.gnu.org/licenses/>.
 
     As a special exception, you may use this file as part of a free
     software library without restriction.  Specifically, if other files
@@ -29,61 +29,78 @@
 extern "C" {
 #endif
 
-const char * const LZ_version_string = "0.7";
+const char * const LZ_version_string = "0.8";
 
-enum { min_dictionary_bits = 12,
-       min_dictionary_size = 1 << min_dictionary_bits,
-       max_dictionary_bits = 29,
-       max_dictionary_size = 1 << max_dictionary_bits };
-
-enum LZ_errno { LZ_ok = 0, LZ_bad_argument, LZ_mem_error, LZ_sequence_error,
-                LZ_header_error, LZ_unexpected_eof, LZ_data_error,
-                LZ_library_error };
+enum LZ_Errno { LZ_ok = 0,         LZ_bad_argument, LZ_mem_error,
+                LZ_sequence_error, LZ_header_error, LZ_unexpected_eof,
+                LZ_data_error,     LZ_library_error };
 
 
 const char * LZ_version( void );
+const char * LZ_strerror( const enum LZ_Errno lz_errno );
+
+int LZ_min_dictionary_bits( void );
+int LZ_min_dictionary_size( void );
+int LZ_max_dictionary_bits( void );
+int LZ_max_dictionary_size( void );
+int LZ_min_match_len_limit( void );
+int LZ_max_match_len_limit( void );
 
 
-void * LZ_compress_open( const int dictionary_size, const int match_len_limit,
-                         const long long member_size );
-int LZ_compress_restart_member( void * const encoder,
+/*---------------------- Compression Functions ----------------------*/
+
+struct LZ_Encoder;
+
+struct LZ_Encoder * LZ_compress_open( const int dictionary_size,
+                                      const int match_len_limit,
+                                      const long long member_size );
+int LZ_compress_close( struct LZ_Encoder * const encoder );
+
+int LZ_compress_finish( struct LZ_Encoder * const encoder );
+int LZ_compress_restart_member( struct LZ_Encoder * const encoder,
                                 const long long member_size );
-int LZ_compress_close( void * const encoder );
-int LZ_compress_finish( void * const encoder );
-int LZ_compress_sync_flush( void * const encoder );
+int LZ_compress_sync_flush( struct LZ_Encoder * const encoder );
 
-int LZ_compress_read( void * const encoder, uint8_t * const buffer,
-                      const int size );
-int LZ_compress_write( void * const encoder, const uint8_t * const buffer,
-                       const int size );
-int LZ_compress_write_size( void * const encoder );
+int LZ_compress_read( struct LZ_Encoder * const encoder,
+                      uint8_t * const buffer, const int size );
+int LZ_compress_write( struct LZ_Encoder * const encoder,
+                       const uint8_t * const buffer, const int size );
+int LZ_compress_write_size( struct LZ_Encoder * const encoder );
 
-enum LZ_errno LZ_compress_errno( void * const encoder );
-int LZ_compress_finished( void * const encoder );
-int LZ_compress_member_finished( void * const encoder );
+enum LZ_Errno LZ_compress_errno( struct LZ_Encoder * const encoder );
+int LZ_compress_finished( struct LZ_Encoder * const encoder );
+int LZ_compress_member_finished( struct LZ_Encoder * const encoder );
 
-long long LZ_compress_data_position( void * const encoder );
-long long LZ_compress_member_position( void * const encoder );
-long long LZ_compress_total_in_size( void * const encoder );
-long long LZ_compress_total_out_size( void * const encoder );
+long long LZ_compress_data_position( struct LZ_Encoder * const encoder );
+long long LZ_compress_member_position( struct LZ_Encoder * const encoder );
+long long LZ_compress_total_in_size( struct LZ_Encoder * const encoder );
+long long LZ_compress_total_out_size( struct LZ_Encoder * const encoder );
 
 
-void * LZ_decompress_open( void );
-int LZ_decompress_close( void * const decoder );
-int LZ_decompress_finish( void * const decoder );
+/*--------------------- Decompression Functions ---------------------*/
 
-int LZ_decompress_read( void * const decoder, uint8_t * const buffer,
-                        const int size );
-int LZ_decompress_write( void * const decoder, const uint8_t * const buffer,
-                         const int size );
+struct LZ_Decoder;
 
-enum LZ_errno LZ_decompress_errno( void * const decoder );
-int LZ_decompress_finished( void * const decoder );
+struct LZ_Decoder * LZ_decompress_open( void );
+int LZ_decompress_close( struct LZ_Decoder * const decoder );
 
-long long LZ_decompress_data_position( void * const decoder );
-long long LZ_decompress_member_position( void * const decoder );
-long long LZ_decompress_total_in_size( void * const decoder );
-long long LZ_decompress_total_out_size( void * const decoder );
+int LZ_decompress_finish( struct LZ_Decoder * const decoder );
+int LZ_decompress_reset( struct LZ_Decoder * const decoder );
+int LZ_decompress_sync_to_member( struct LZ_Decoder * const decoder );
+
+int LZ_decompress_read( struct LZ_Decoder * const decoder,
+                        uint8_t * const buffer, const int size );
+int LZ_decompress_write( struct LZ_Decoder * const decoder,
+                         const uint8_t * const buffer, const int size );
+int LZ_decompress_write_size( struct LZ_Decoder * const decoder );
+
+enum LZ_Errno LZ_decompress_errno( struct LZ_Decoder * const decoder );
+int LZ_decompress_finished( struct LZ_Decoder * const decoder );
+
+long long LZ_decompress_data_position( struct LZ_Decoder * const decoder );
+long long LZ_decompress_member_position( struct LZ_Decoder * const decoder );
+long long LZ_decompress_total_in_size( struct LZ_Decoder * const decoder );
+long long LZ_decompress_total_out_size( struct LZ_Decoder * const decoder );
 
 #ifdef __cplusplus
 }

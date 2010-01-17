@@ -12,23 +12,25 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 0.7, 20 October 2009).
+This manual is for Lzlib (version 0.8, 17 January 2010).
 
 * Menu:
 
 * Introduction::		Purpose and features of Lzlib
 * Library Version::		Checking library version
 * Buffering::			Sizes of Lzlib's buffers
+* Parameter Limits::		Min / max values for some parameters
 * Compression Functions::	Descriptions of the compression functions
 * Decompression Functions::	Descriptions of the decompression functions
 * Error Codes::			Meaning of codes returned by functions
+* Error Messages::		Error messages corresponding to error codes
 * Data Format::			Detailed format of the compressed data
 * Examples::			A small tutorial with examples
 * Problems::			Reporting bugs
 * Concept Index::		Index of concepts
 
 
-   Copyright (C) 2009 Antonio Diaz Diaz.
+   Copyright (C) 2009, 2010 Antonio Diaz Diaz.
 
    This manual is free documentation: you have unlimited permission to
 copy, distribute and modify it.
@@ -95,7 +97,7 @@ application.
        error( "bad library version" );
 
 
-File: lzlib.info,  Node: Buffering,  Next: Compression Functions,  Prev: Library Version,  Up: Top
+File: lzlib.info,  Node: Buffering,  Next: Parameter Limits,  Prev: Library Version,  Up: Top
 
 3 Buffering
 ***********
@@ -119,24 +121,55 @@ minimum sizes:
      `LZ_decompress_write' function. Its size is 64KiB.
 
    * Output decompression buffer. Read from by the `LZ_decompress_read'
-     function. Its size is the dictionary size set with the
-     `LZ_decompress_open' function or 64KiB, whichever is larger.
+     function. Its size is the dictionary size set in the header of the
+     member currently being decompressed or 64KiB, whichever is larger.
 
 
-File: lzlib.info,  Node: Compression Functions,  Next: Decompression Functions,  Prev: Buffering,  Up: Top
+File: lzlib.info,  Node: Parameter Limits,  Next: Compression Functions,  Prev: Buffering,  Up: Top
 
-4 Compression Functions
+4 Parameter Limits
+******************
+
+These functions provide minimum and maximum values for some parameters.
+Current values are shown in square brackets.
+
+ -- Function: int LZ_min_dictionary_bits ( void )
+     Returns the base 2 logarithm of the smallest valid dictionary size
+     [12].
+
+ -- Function: int LZ_min_dictionary_size ( void )
+     Returns the smallest valid dictionary size [4KiB].
+
+ -- Function: int LZ_max_dictionary_bits ( void )
+     Returns the base 2 logarithm of the largest valid dictionary size
+     [29].
+
+ -- Function: int LZ_max_dictionary_size ( void )
+     Returns the largest valid dictionary size [512MiB].
+
+ -- Function: int LZ_min_match_len_limit ( void )
+     Returns the smallest valid match length limit [5].
+
+ -- Function: int LZ_max_match_len_limit ( void )
+     Returns the largest valid match length limit [273].
+
+
+File: lzlib.info,  Node: Compression Functions,  Next: Decompression Functions,  Prev: Parameter Limits,  Up: Top
+
+5 Compression Functions
 ***********************
 
 These are the functions used to compress data. In case of error, all of
 them return -1, except `LZ_compress_open' whose return value must be
 verified by calling `LZ_compress_errno' before using it.
 
- -- Function: void * LZ_compress_open ( const int DICTIONARY_SIZE,
-          const int MATCH_LEN_LIMIT, const long long MEMBER_SIZE )
+ -- Function: struct LZ_Encoder * LZ_compress_open ( const int
+          DICTIONARY_SIZE, const int MATCH_LEN_LIMIT, const long long
+          MEMBER_SIZE )
      Initializes the internal stream state for compression and returns a
      pointer that can only be used as the ENCODER argument for the
-     other LZ_compress functions.
+     other LZ_compress functions, or a null pointer if the encoder
+     could not be allocated.
 
      The returned pointer must be verified by calling
      `LZ_compress_errno' before using it. If `LZ_compress_errno' does
@@ -158,31 +191,37 @@ verified by calling `LZ_compress_errno' before using it.
      stream, give MEMBER_SIZE a value larger than the amount of data to
      be produced, for example LLONG_MAX.
 
- -- Function: int LZ_compress_restart_member ( void * const ENCODER,
-          const long long MEMBER_SIZE )
-     Use this function to start a new member, in a multimember data
-     stream.  Call this function only after
-     `LZ_compress_member_finished' indicates that the current member
-     has been fully read (with the `LZ_compress_read' function).
-
- -- Function: int LZ_compress_close ( void * const ENCODER )
+ -- Function: int LZ_compress_close ( struct LZ_Encoder * const ENCODER
+          )
      Frees all dynamically allocated data structures for this stream.
      This function discards any unprocessed input and does not flush
      any pending output. After a call to `LZ_compress_close', ENCODER
      can no more be used as an argument to any LZ_compress function.
 
- -- Function: int LZ_compress_finish ( void * const ENCODER )
-     Use this function to tell `lzlib' that all the data for this stream
+ -- Function: int LZ_compress_finish ( struct LZ_Encoder * const
+          ENCODER )
+     Use this function to tell `lzlib' that all the data for this member
      has already been written (with the `LZ_compress_write' function).
+     After all the produced compressed data has been read with
+     `LZ_compress_read' and `LZ_compress_member_finished' returns 1, a
+     new member can be started with `LZ_compress_restart_member'.
 
- -- Function: int LZ_compress_sync_flush ( void * const ENCODER )
+ -- Function: int LZ_compress_restart_member ( struct LZ_Encoder *
+          const ENCODER, const long long MEMBER_SIZE )
+     Use this function to start a new member, in a multimember data
+     stream.  Call this function only after
+     `LZ_compress_member_finished' indicates that the current member
+     has been fully read (with the `LZ_compress_read' function).
+
+ -- Function: int LZ_compress_sync_flush ( struct LZ_Encoder * const
+          ENCODER )
      Use this function to make available to `LZ_compress_read' all the
      data already written with the `LZ_compress_write' function.
      Repeated use of `LZ_compress_sync_flush' may degrade compression
      ratio, so use it only when needed.
 
- -- Function: int LZ_compress_read ( void * const ENCODER, uint8_t *
-          const BUFFER, const int SIZE )
+ -- Function: int LZ_compress_read ( struct LZ_Encoder * const ENCODER,
+          uint8_t * const BUFFER, const int SIZE )
      The `LZ_compress_read' function reads up to SIZE bytes from the
      stream pointed to by ENCODER, storing the results in BUFFER.
 
@@ -192,8 +231,8 @@ verified by calling `LZ_compress_errno' before using it.
      `LZ_compress_write' function. Note that reading less than SIZE
      bytes is not an error.
 
- -- Function: int LZ_compress_write ( void * const ENCODER, uint8_t *
-          const BUFFER, const int SIZE )
+ -- Function: int LZ_compress_write ( struct LZ_Encoder * const
+          ENCODER, uint8_t * const BUFFER, const int SIZE )
      The `LZ_compress_write' function writes up to SIZE bytes from
      BUFFER to the stream pointed to by ENCODER.
 
@@ -201,7 +240,8 @@ verified by calling `LZ_compress_errno' before using it.
      might be less than SIZE. Note that writing less than SIZE bytes is
      not an error.
 
- -- Function: int LZ_compress_write_size ( void * const ENCODER )
+ -- Function: int LZ_compress_write_size ( struct LZ_Encoder * const
+          ENCODER )
      The `LZ_compress_write_size' function returns the maximum number of
      bytes that can be inmediately written through the
      `LZ_compress_write' function.
@@ -209,69 +249,94 @@ verified by calling `LZ_compress_errno' before using it.
      It is guaranteed that an inmediate call to `LZ_compress_write' will
      accept a SIZE up to the returned number of bytes.
 
- -- Function: enum LZ_errno LZ_compress_errno ( void * const ENCODER )
+ -- Function: enum LZ_Errno LZ_compress_errno ( struct LZ_Encoder *
+          const ENCODER )
      Returns the current error code for ENCODER (*note Error Codes::)
 
- -- Function: int LZ_compress_finished ( void * const ENCODER )
+ -- Function: int LZ_compress_finished ( struct LZ_Encoder * const
+          ENCODER )
      Returns 1 if all the data has been read and `LZ_compress_close' can
      be safely called. Otherwise it returns 0.
 
- -- Function: int LZ_compress_member_finished ( void * const ENCODER )
+ -- Function: int LZ_compress_member_finished ( struct LZ_Encoder *
+          const ENCODER )
      Returns 1 if the current member, in a multimember data stream, has
      been fully read and `LZ_compress_restart_member' can be safely
      called.  Otherwise it returns 0.
 
- -- Function: long long LZ_compress_data_position ( void * const
-          ENCODER )
+ -- Function: long long LZ_compress_data_position ( struct LZ_Encoder *
+          const ENCODER )
      Returns the number of input bytes already compressed in the current
      member.
 
- -- Function: long long LZ_compress_member_position ( void * const
-          ENCODER )
+ -- Function: long long LZ_compress_member_position ( struct LZ_Encoder
+          * const ENCODER )
      Returns the number of compressed bytes already produced, but
      perhaps not yet read, in the current member.
 
- -- Function: long long LZ_compress_total_in_size ( void * const
-          ENCODER )
+ -- Function: long long LZ_compress_total_in_size ( struct LZ_Encoder *
+          const ENCODER )
      Returns the total number of input bytes already compressed.
 
- -- Function: long long LZ_compress_total_out_size ( void * const
-          ENCODER )
+ -- Function: long long LZ_compress_total_out_size ( struct LZ_Encoder
+          * const ENCODER )
      Returns the total number of compressed bytes already produced, but
      perhaps not yet read.
 
 
 File: lzlib.info,  Node: Decompression Functions,  Next: Error Codes,  Prev: Compression Functions,  Up: Top
 
-5 Decompression Functions
+6 Decompression Functions
 *************************
 
 These are the functions used to decompress data. In case of error, all
 of them return -1, except `LZ_decompress_open' whose return value must
 be verified by calling `LZ_decompress_errno' before using it.
 
- -- Function: void * LZ_decompress_open ( void )
+ -- Function: struct LZ_Decoder * LZ_decompress_open ( void )
      Initializes the internal stream state for decompression and
      returns a pointer that can only be used as the DECODER argument
-     for the other LZ_decompress functions.
+     for the other LZ_decompress functions, or a null pointer if the
+     decoder could not be allocated.
 
      The returned pointer must be verified by calling
      `LZ_decompress_errno' before using it. If `LZ_decompress_errno'
      does not return `LZ_ok', the returned pointer must not be used and
      should be freed with `LZ_decompress_close' to avoid memory leaks.
 
- -- Function: int LZ_decompress_close ( void * const DECODER )
+ -- Function: int LZ_decompress_close ( struct LZ_Decoder * const
+          DECODER )
      Frees all dynamically allocated data structures for this stream.
      This function discards any unprocessed input and does not flush
      any pending output. After a call to `LZ_decompress_close', DECODER
      can no more be used as an argument to any LZ_decompress function.
 
- -- Function: int LZ_decompress_finish ( void * const DECODER )
+ -- Function: int LZ_decompress_finish ( struct LZ_Decoder * const
+          DECODER )
      Use this function to tell `lzlib' that all the data for this stream
      has already been written (with the `LZ_decompress_write' function).
 
- -- Function: int LZ_decompress_read ( void * const DECODER, uint8_t *
-          const BUFFER, const int SIZE )
+ -- Function: int LZ_decompress_reset ( struct LZ_Decoder * const
+          DECODER )
+     Resets the internal state of DECODER as it was just after opening
+     it with the `LZ_decompress_open' function. Data stored in the
+     internal buffers is discarded. Position counters are set to 0.
+
+ -- Function: int LZ_decompress_sync_to_member ( struct LZ_Decoder *
+          const DECODER )
+     Resets the error state of DECODER and enters a search state that
+     lasts until a new member header (or the end of the stream) is
+     found.  After a successful call to `LZ_decompress_sync_to_member',
+     data written with `LZ_decompress_write' will be consumed and
+     `LZ_decompress_read' will return 0 until a header is found.
+
+     This function is useful to discard any data preceding the first
+     member, or to discard the rest of the current member, for example
+     in case of a data error. If the decoder is already at the
+     beginning of a member, this function does nothing.
+
+ -- Function: int LZ_decompress_read ( struct LZ_Decoder * const
+          DECODER, uint8_t * const BUFFER, const int SIZE )
      The `LZ_decompress_read' function reads up to SIZE bytes from the
      stream pointed to by DECODER, storing the results in BUFFER.
 
@@ -281,8 +346,8 @@ be verified by calling `LZ_decompress_errno' before using it.
      `LZ_decompress_write' function. Note that reading less than SIZE
      bytes is not an error.
 
- -- Function: int LZ_decompress_write ( void * const DECODER, uint8_t *
-          const BUFFER, const int SIZE )
+ -- Function: int LZ_decompress_write ( struct LZ_Decoder * const
+          DECODER, uint8_t * const BUFFER, const int SIZE )
      The `LZ_decompress_write' function writes up to SIZE bytes from
      BUFFER to the stream pointed to by DECODER.
 
@@ -290,36 +355,47 @@ be verified by calling `LZ_decompress_errno' before using it.
      might be less than SIZE. Note that writing less than SIZE bytes is
      not an error.
 
- -- Function: enum LZ_errno LZ_decompress_errno ( void * const DECODER )
+ -- Function: int LZ_decompress_write_size ( struct LZ_Decoder * const
+          DECODER )
+     The `LZ_decompress_write_size' function returns the maximum number
+     of bytes that can be inmediately written through the
+     `LZ_decompress_write' function.
+
+     It is guaranteed that an inmediate call to `LZ_decompress_write'
+     will accept a SIZE up to the returned number of bytes.
+
+ -- Function: enum LZ_Errno LZ_decompress_errno ( struct LZ_Decoder *
+          const DECODER )
      Returns the current error code for DECODER (*note Error Codes::)
 
- -- Function: int LZ_decompress_finished ( void * const DECODER )
+ -- Function: int LZ_decompress_finished ( struct LZ_Decoder * const
+          DECODER )
      Returns 1 if all the data has been read and `LZ_decompress_close'
      can be safely called. Otherwise it returns 0.
 
- -- Function: long long LZ_decompress_data_position ( void * const
-          DECODER )
+ -- Function: long long LZ_decompress_data_position ( struct LZ_Decoder
+          * const DECODER )
      Returns the number of decompressed bytes already produced, but
      perhaps not yet read, in the current member.
 
- -- Function: long long LZ_decompress_member_position ( void * const
-          DECODER )
+ -- Function: long long LZ_decompress_member_position ( struct
+          LZ_Decoder * const DECODER )
      Returns the number of input bytes already decompressed in the
      current member.
 
- -- Function: long long LZ_decompress_total_in_size ( void * const
-          DECODER )
+ -- Function: long long LZ_decompress_total_in_size ( struct LZ_Decoder
+          * const DECODER )
      Returns the total number of input bytes already decompressed.
 
- -- Function: long long LZ_decompress_total_out_size ( void * const
-          DECODER )
+ -- Function: long long LZ_decompress_total_out_size ( struct
+          LZ_Decoder * const DECODER )
      Returns the total number of decompressed bytes already produced,
      but perhaps not yet read.
 
 
-File: lzlib.info,  Node: Error Codes,  Next: Data Format,  Prev: Decompression Functions,  Up: Top
+File: lzlib.info,  Node: Error Codes,  Next: Error Messages,  Prev: Decompression Functions,  Up: Top
 
-6 Error Codes
+7 Error Codes
 *************
 
 Most library functions return -1 to indicate that they have failed. But
@@ -336,42 +412,58 @@ whether a call failed. If the call failed, then you can examine
 
    The error codes are defined in the header file `lzlib.h'.
 
- -- Constant: enum LZ_errno LZ_ok
+ -- Constant: enum LZ_Errno LZ_ok
      The value of this constant is 0 and is used to indicate that there
      is no error.
 
- -- Constant: enum LZ_errno LZ_bad_argument
+ -- Constant: enum LZ_Errno LZ_bad_argument
      At least one of the arguments passed to the library function was
      invalid.
 
- -- Constant: enum LZ_errno LZ_mem_error
+ -- Constant: enum LZ_Errno LZ_mem_error
      No memory available. The system cannot allocate more virtual memory
      because its capacity is full.
 
- -- Constant: enum LZ_errno LZ_sequence_error
+ -- Constant: enum LZ_Errno LZ_sequence_error
      A library function was called in the wrong order. For example
      `LZ_compress_restart_member' was called before
      `LZ_compress_member_finished' indicates that the current member is
      finished.
 
- -- Constant: enum LZ_errno LZ_header_error
+ -- Constant: enum LZ_Errno LZ_header_error
      Reading of member header failed. If this happens at the end of the
      data stream it may indicate trailing garbage.
 
- -- Constant: enum LZ_errno LZ_unexpected_eof
+ -- Constant: enum LZ_Errno LZ_unexpected_eof
      The end of the data stream was reached in the middle of a member.
 
- -- Constant: enum LZ_errno LZ_data_error
+ -- Constant: enum LZ_Errno LZ_data_error
      The data stream is corrupt.
 
- -- Constant: enum LZ_errno LZ_library_error
+ -- Constant: enum LZ_Errno LZ_library_error
      A bug was detected in the library. Please, report it (*note
      Problems::).
 
 
-File: lzlib.info,  Node: Data Format,  Next: Examples,  Prev: Error Codes,  Up: Top
+File: lzlib.info,  Node: Error Messages,  Next: Data Format,  Prev: Error Codes,  Up: Top
 
-7 Data Format
+8 Error Messages
+****************
+
+ -- Function: const char * LZ_strerror ( const enum LZ_Errno LZ_ERRNO )
+     Returns the standard error message for a given error code. The
+     messages are fairly short; there are no multi-line messages or
+     embedded newlines.  This function makes it easy for your program
+     to report informative error messages about the failure of a
+     library call.
+
+     The value of LZ_ERRNO normally comes from a call to
+     `LZ_(de)compress_errno'.
+
+
+File: lzlib.info,  Node: Data Format,  Next: Examples,  Prev: Error Messages,  Up: Top
+
+9 Data Format
 *************
 
 In the diagram below, a box like this:
@@ -433,8 +525,8 @@ with no additional information before, between, or after them.
 
 File: lzlib.info,  Node: Examples,  Next: Problems,  Prev: Data Format,  Up: Top
 
-8 A small tutorial with examples
-********************************
+10 A small tutorial with examples
+*********************************
 
 This chaper shows the order in which the library functions should be
 called depending on what kind of data stream you want to compress or
@@ -453,7 +545,18 @@ Example 1: Normal compression (MEMBER_SIZE > total output).
      8) LZ_compress_close
 
 
-Example 2: Decompression.
+Example 2: Normal compression using LZ_compress_write_size.
+
+     1) LZ_compress_open
+     2) go to step 5 if LZ_compress_write_size returns 0
+     3) LZ_compress_write
+     4) if no more data to write, call LZ_compress_finish
+     5) LZ_compress_read
+     6) go back to step 2 until LZ_compress_finished returns 1
+     7) LZ_compress_close
+
+
+Example 3: Decompression.
 
      1) LZ_decompress_open
      2) LZ_decompress_write
@@ -465,24 +568,76 @@ Example 2: Decompression.
      8) LZ_decompress_close
 
 
-Example 3: Multimember compression (MEMBER_SIZE < total output).
+Example 4: Decompression using LZ_decompress_write_size.
+
+     1) LZ_decompress_open
+     2) go to step 5 if LZ_decompress_write_size returns 0
+     3) LZ_decompress_write
+     4) if no more data to write, call LZ_decompress_finish
+     5) LZ_decompress_read
+     6) go back to step 2 until LZ_decompress_finished returns 1
+     7) LZ_decompress_close
+
+
+Example 5: Multimember compression (MEMBER_SIZE < total output).
+
+      1) LZ_compress_open
+      2) go to step 5 if LZ_compress_write_size returns 0
+      3) LZ_compress_write
+      4) if no more data to write, call LZ_compress_finish
+      5) LZ_compress_read
+      6) go back to step 2 until LZ_compress_member_finished returns 1
+      7) go to step 10 if LZ_compress_finished() returns 1
+      8) LZ_compress_restart_member
+      9) go back to step 2
+     10) LZ_compress_close
+
+
+Example 6: Multimember compression (user-restarted members).
 
       1) LZ_compress_open
       2) LZ_compress_write
       3) LZ_compress_read
-      4) go back to step 2 until LZ_compress_member_finished returns 1
-      5) LZ_compress_restart_member
-      6) go back to step 2 until all input data has been written
-      7) LZ_compress_finish
-      8) LZ_compress_read
-      9) go back to step 8 until LZ_compress_finished returns 1
-     10) LZ_compress_close
+      4) go back to step 2 until member termination is desired
+      5) LZ_compress_finish
+      6) LZ_compress_read
+      7) go back to step 6 until LZ_compress_member_finished returns 1
+      8) verify that LZ_compress_finished returns 1
+      9) go to step 12 if all input data has been written
+     10) LZ_compress_restart_member
+     11) go back to step 2
+     12) LZ_compress_close
+
+
+Example 7: Decompression with automatic removal of leading garbage.
+
+     1) LZ_decompress_open
+     2) LZ_decompress_sync_to_member
+     3) go to step 6 if LZ_decompress_write_size returns 0
+     4) LZ_decompress_write
+     5) if no more data to write, call LZ_decompress_finish
+     6) LZ_decompress_read
+     7) go back to step 3 until LZ_decompress_finished returns 1
+     8) LZ_decompress_close
+
+
+Example 8: Streamed decompression with automatic resynchronization to
+next member in case of data error.
+
+     1) LZ_decompress_open
+     2) go to step 5 if LZ_decompress_write_size returns 0
+     3) LZ_decompress_write
+     4) if no more data to write, call LZ_decompress_finish
+     5) if LZ_decompress_read produces LZ_header_error or LZ_data_error,
+        call LZ_decompress_sync_to_member
+     6) go back to step 2 until LZ_decompress_finished returns 1
+     7) LZ_decompress_close
 
 
 File: lzlib.info,  Node: Problems,  Next: Concept Index,  Prev: Examples,  Up: Top
 
-9 Reporting Bugs
-****************
+11 Reporting Bugs
+*****************
 
 There are probably bugs in Lzlib. There are certainly errors and
 omissions in this manual. If you report them, they will get fixed. If
@@ -510,24 +665,28 @@ Concept Index
 * decompression functions:               Decompression Functions.
                                                                 (line 6)
 * error codes:                           Error Codes.           (line 6)
+* error messages:                        Error Messages.        (line 6)
 * examples:                              Examples.              (line 6)
 * getting help:                          Problems.              (line 6)
 * introduction:                          Introduction.          (line 6)
 * library version:                       Library Version.       (line 6)
+* parameter limits:                      Parameter Limits.      (line 6)
 
 
 
 Tag Table:
 Node: Top219
-Node: Introduction1028
-Node: Library Version2803
-Node: Buffering3448
-Node: Compression Functions4555
-Node: Decompression Functions10057
-Node: Error Codes13495
-Node: Data Format15431
-Node: Examples17398
-Node: Problems18832
-Node: Concept Index19402
+Node: Introduction1157
+Node: Library Version2932
+Node: Buffering3577
+Node: Parameter Limits4697
+Node: Compression Functions5654
+Node: Decompression Functions11700
+Node: Error Codes16762
+Node: Error Messages18701
+Node: Data Format19280
+Node: Examples21250
+Node: Problems24826
+Node: Concept Index25398
 
 End Tag Table
