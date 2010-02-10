@@ -391,7 +391,7 @@ int LZ_decompress_read( struct LZ_Decoder * const decoder,
     }
   if( !d.lz_decoder )
     {
-    if( d.ibuf->used_bytes() < 5 + (int)sizeof( File_header ) )
+    if( d.ibuf->used_bytes() < 5 + (int)sizeof (File_header) )
       {
       if( !d.ibuf->at_stream_end() || d.ibuf->finished() ) return 0;
       d.ibuf->purge();			// remove trailing garbage

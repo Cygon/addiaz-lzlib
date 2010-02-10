@@ -44,7 +44,7 @@ const Prob_prices prob_prices;
 
 int Matchfinder::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
   {
-  if( at_stream_end_ ) return 0;
+  if( at_stream_end_ || in_size < 0 ) return 0;
   const int size = std::min( buffer_size - stream_pos, in_size );
   if( size > 0 )
     {
@@ -68,7 +68,8 @@ Matchfinder::Matchfinder( const int dict_size, const int len_limit )
   pos_limit( buffer_size - after_size ),
   match_len_limit_( len_limit ),
   prev_positions( new( std::nothrow ) int32_t[num_prev_positions] ),
-  at_stream_end_( false )
+  at_stream_end_( false ),
+  been_flushed( false )
   {
   prev_pos_tree = new( std::nothrow ) int32_t[2*dictionary_size_];
   if( !buffer || !prev_positions || !prev_pos_tree )
@@ -91,6 +92,7 @@ void Matchfinder::reset() throw()
   pos = 0;
   cyclic_pos = 0;
   at_stream_end_ = false;
+  been_flushed = false;
   for( int i = 0; i < num_prev_positions; ++i ) prev_positions[i] = -1;
   }
 
@@ -126,6 +128,7 @@ int Matchfinder::longest_match_len( int * const distances ) throw()
   int len_limit = match_len_limit_;
   if( len_limit > available_bytes() )
     {
+    been_flushed = true;
     len_limit = available_bytes();
     if( len_limit < 4 )
       { prev_pos_tree[idx0] = prev_pos_tree[idx1] = -1; return 0; }
@@ -160,12 +163,14 @@ int Matchfinder::longest_match_len( int * const distances ) throw()
   int newpos = prev_positions[key4];
   prev_positions[key4] = pos;
 
+  int len = 0, len0 = 0, len1 = 0;
+
   for( int count = 16 + ( match_len_limit_ / 2 ); ; )
     {
     if( newpos < min_pos || --count < 0 )
       { prev_pos_tree[idx0] = prev_pos_tree[idx1] = -1; break; }
     const uint8_t * const newdata = buffer + newpos;
-    int len = 0;
+    if( been_flushed ) len = 0;
     while( len < len_limit && newdata[len] == data[len] ) ++len;
 
     const int delta = pos - newpos;
@@ -181,12 +186,14 @@ int Matchfinder::longest_match_len( int * const distances ) throw()
         prev_pos_tree[idx0] = newpos;
         idx0 = newidx + 1;
         newpos = prev_pos_tree[idx0];
+        len0 = len; if( len1 < len ) len = len1;
         }
       else
         {
         prev_pos_tree[idx1] = newpos;
         idx1 = newidx;
         newpos = prev_pos_tree[idx1];
+        len1 = len; if( len0 < len ) len = len0;
         }
       }
     else
@@ -481,7 +488,7 @@ bool LZ_encoder::sync_flush()
 bool LZ_encoder::full_flush()
   {
   if( member_finished_ ||
-      range_encoder.free_bytes() < (int)sizeof( File_trailer ) + max_marker_size )
+      range_encoder.free_bytes() < (int)sizeof (File_trailer) + max_marker_size )
     return false;
   const int pos_state = ( matchfinder.data_position() ) & pos_state_mask;
   range_encoder.encode_bit( bm_match[state()][pos_state], 1 );
@@ -501,7 +508,7 @@ bool LZ_encoder::full_flush()
 LZ_encoder::LZ_encoder( Matchfinder & mf, const File_header & header,
                         const long long member_size )
   :
-  member_size_limit( member_size - sizeof( File_trailer ) - max_marker_size ),
+  member_size_limit( member_size - sizeof (File_trailer) - max_marker_size ),
   longest_match_found( 0 ),
   crc_( 0xFFFFFFFF ),
   matchfinder( mf ),

@@ -33,7 +33,6 @@ the main archive.
    documentation. (You might have to run ldconfig also).
 
 
-
 Another way
 -----------
 You can also compile lzlib into a separate directory. To do this, you

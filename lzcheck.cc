@@ -82,7 +82,64 @@ int main( const int argc, const char * argv[] )
     }
 
   int retval = 0;
-  while( retval <= 2 )
+  while( retval <= 1 )
+    {
+    const int read_size = std::fread( in_buffer, 1, buffer_size, file );
+    if( read_size <= 0 ) break;			// end of file
+
+    for( int l = 0, r = 1; r <= read_size; l = r, ++r )
+      {
+      while( r < read_size && in_buffer[r-1] != '\n' ) ++r;
+      const int in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
+      if( in_size < r - l ) r = l + in_size;
+      LZ_compress_sync_flush( encoder );
+      const int mid_size = LZ_compress_read( encoder, mid_buffer, buffer_size );
+      if( mid_size < 0 )
+        {
+        std::fprintf( stderr, "LZ_compress_read error: %s.\n",
+                      LZ_strerror( LZ_compress_errno( encoder ) ) );
+        retval = 3; break;
+        }
+      LZ_decompress_write( decoder, mid_buffer, mid_size );
+      const int out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
+      if( out_size < 0 )
+        {
+        std::fprintf( stderr, "LZ_decompress_read error: %s.\n",
+                      LZ_strerror( LZ_decompress_errno( decoder ) ) );
+        retval = 3; break;
+        }
+
+      if( out_size != in_size || std::memcmp( in_buffer + l, out_buffer, out_size ) )
+        {
+        std::fprintf( stderr, "sync error at pos %d. in_size = %d, out_size = %d\n",
+                      l, in_size, out_size );
+        for( int i = 0; i < in_size; ++i )
+          std::fputc( in_buffer[l+i], stderr );
+        if( in_buffer[l+in_size-1] != '\n' )
+          std::fputc( '\n', stderr );
+        for( int i = 0; i < out_size; ++i )
+          std::fputc( out_buffer[i], stderr );
+        std::fputc( '\n', stderr );
+        retval = 1;
+        }
+      }
+    }
+
+  if( retval <= 1 )
+    {
+    std::rewind( file );
+    if( LZ_compress_finish( encoder ) < 0 ||
+        LZ_decompress_write( decoder, mid_buffer, LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
+        LZ_decompress_read( decoder, out_buffer, buffer_size ) != 0 ||
+        LZ_compress_restart_member( encoder, member_size ) < 0 )
+      {
+      std::fprintf( stderr, "can't finish member: %s.\n",
+                    LZ_strerror( LZ_decompress_errno( decoder ) ) );
+      retval = 3;
+      }
+    }
+
+  while( retval <= 1 )
     {
     const int read_size = std::fread( in_buffer, 1, buffer_size / 2, file );
     if( read_size <= 0 ) break;			// end of file

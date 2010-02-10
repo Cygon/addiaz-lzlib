@@ -1,28 +1,3 @@
-Changes in version 0.8:
+Changes in version 0.9:
 
-API changes:
-  New functions:
-    LZ_decompress_reset
-    LZ_decompress_sync_to_member
-    LZ_decompress_write_size
-    LZ_strerror
-
-  Names and types for values of dictionary size limits have been changed
-  to make interface names consistent.
-
-  "LZ_errno" has been replaced with "LZ_Errno".
-
-  "void *" has been replaced with "struct LZ_Encoder *" and
-  "struct LZ_Decoder *" to make interface type safe.
-
-A truncated member trailer is now correctly detected.
-
-LZ_compress_restart_member is now able to restart a finished stream.
-
-Lzlib now only accepts query or close operations after a fatal error has
-occurred.
-
-Shared version of lzlib is no more built by default. Use
-"configure --enable-shared" to build it.
-
-The "COPYING" file is no more used for testing decompression.
+Compression time has been reduced by 8%.

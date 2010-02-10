@@ -172,6 +172,7 @@ class Matchfinder
   int32_t * const prev_positions;	// last seen position of key
   int32_t * prev_pos_tree;
   bool at_stream_end_;		// stream_pos shows real end of file
+  bool been_flushed;
 
 public:
   Matchfinder( const int dict_size, const int len_limit );
@@ -575,8 +576,8 @@ class LZ_encoder
       {
       const int prev_index = trials[cur].prev_index;
       Trial & prev_trial = trials[prev_index];
-      std::swap( dis, prev_trial.dis );
-      prev_trial.price = cur - prev_index;		// len
+      prev_trial.price = cur - prev_index;			// len
+      cur = dis; dis = prev_trial.dis; prev_trial.dis = cur;
       cur = prev_index;
       }
     }

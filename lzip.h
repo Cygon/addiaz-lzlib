@@ -207,7 +207,7 @@ struct File_trailer
   uint8_t member_size_[8];	// member size including header and trailer
 
   static int size( const int version )
-    { return sizeof( File_trailer ) - ( ( version >= 1 ) ? 0 : 8 ); }
+    { return sizeof (File_trailer) - ( ( version >= 1 ) ? 0 : 8 ); }
 
   uint32_t data_crc() const throw()
     {

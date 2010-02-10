@@ -54,14 +54,15 @@ sh_lzlib.o : lzlib.cc
 
 $(lib_objs)    : Makefile lzlib.h lzip.h
 $(sh_lib_objs) : Makefile lzlib.h lzip.h
+$(objs)        : Makefile
+arg_parser.o   : arg_parser.h
 decoder.o      : decoder.h
 encoder.o      : encoder.h
 lzlib.o        : decoder.h encoder.h
 sh_decoder.o   : decoder.h
 sh_encoder.o   : encoder.h
 sh_lzlib.o     : decoder.h encoder.h
-arg_parser.o   : Makefile arg_parser.h
-main.o         : Makefile arg_parser.h lzlib.h
+main.o         : arg_parser.h lzlib.h
 lzcheck.o      : Makefile lzlib.h
 
 
@@ -85,44 +86,44 @@ check : all lzcheck
 	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite
 
 install : all install-info
-	if [ ! -d $(DESTDIR)$(includedir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(includedir) ; fi
-	if [ ! -d $(DESTDIR)$(libdir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(libdir) ; fi
-	$(INSTALL_DATA) $(VPATH)/$(libname)lib.h $(DESTDIR)$(includedir)/$(libname)lib.h
-	$(INSTALL_DATA) ./lib$(libname).a $(DESTDIR)$(libdir)/lib$(libname).a
+	if [ ! -d "$(DESTDIR)$(includedir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(includedir)" ; fi
+	if [ ! -d "$(DESTDIR)$(libdir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(libdir)" ; fi
+	$(INSTALL_DATA) $(VPATH)/$(libname)lib.h "$(DESTDIR)$(includedir)/$(libname)lib.h"
+	$(INSTALL_DATA) ./lib$(libname).a "$(DESTDIR)$(libdir)/lib$(libname).a"
 	if [ -n "$(progname_shared)" ] ; then \
-	  $(INSTALL_PROGRAM) ./lib$(libname).so.$(pkgversion) $(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion) ; \
-	  if [ -e $(DESTDIR)$(libdir)/lib$(libname).so.$(soversion) ] ; then \
-	    run_ldconfig=no ; rm -f $(DESTDIR)$(libdir)/lib$(libname).so.$(soversion) ; \
+	  $(INSTALL_PROGRAM) ./lib$(libname).so.$(pkgversion) "$(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)" ; \
+	  if [ -e "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)" ] ; then \
+	    run_ldconfig=no ; rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)" ; \
 	  else run_ldconfig=yes ; \
 	  fi ; \
-	  cd $(DESTDIR)$(libdir) && ln -s lib$(libname).so.$(pkgversion) lib$(libname).so.$(soversion) ; \
-	  if [ $${run_ldconfig} = yes ] ; then $(LDCONFIG) $(DESTDIR)$(libdir) ; fi ; \
+	  cd "$(DESTDIR)$(libdir)" && ln -s lib$(libname).so.$(pkgversion) lib$(libname).so.$(soversion) ; \
+	  if [ $${run_ldconfig} = yes ] ; then $(LDCONFIG) "$(DESTDIR)$(libdir)" ; fi ; \
 	fi
 
 install-info :
-	if [ ! -d $(DESTDIR)$(infodir) ] ; then $(INSTALL_DIR) $(DESTDIR)$(infodir) ; fi
-	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info $(DESTDIR)$(infodir)/$(pkgname).info
-	-install-info --info-dir=$(DESTDIR)$(infodir) $(DESTDIR)$(infodir)/$(pkgname).info
+	if [ ! -d "$(DESTDIR)$(infodir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(infodir)" ; fi
+	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info "$(DESTDIR)$(infodir)/$(pkgname).info"
+	-install-info --info-dir="$(DESTDIR)$(infodir)" $(DESTDIR)$(infodir)/$(pkgname).info
 
 install-man :
-	if [ ! -d $(DESTDIR)$(mandir)/man1 ] ; then $(INSTALL_DIR) $(DESTDIR)$(mandir)/man1 ; fi
-	$(INSTALL_DATA) $(VPATH)/doc/$(progname).1 $(DESTDIR)$(mandir)/man1/$(progname).1
+	if [ ! -d "$(DESTDIR)$(mandir)/man1" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1" ; fi
+	$(INSTALL_DATA) $(VPATH)/doc/$(progname).1 "$(DESTDIR)$(mandir)/man1/$(progname).1"
 
 install-strip : all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
 uninstall : uninstall-info
-	-rm -f $(DESTDIR)$(includedir)/$(libname)lib.h
-	-rm -f $(DESTDIR)$(libdir)/lib$(libname).a
-	-rm -f $(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)
-	-rm -f $(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)
+	-rm -f "$(DESTDIR)$(includedir)/$(libname)lib.h"
+	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).a"
+	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)"
+	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)"
 
 uninstall-info :
-	-install-info --info-dir=$(DESTDIR)$(infodir) --remove $(DESTDIR)$(infodir)/$(pkgname).info
-	-rm -f $(DESTDIR)$(infodir)/$(pkgname).info
+	-install-info --info-dir="$(DESTDIR)$(infodir)" --remove "$(DESTDIR)$(infodir)/$(pkgname).info"
+	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"
 
 uninstall-man :
-	-rm -f $(DESTDIR)$(mandir)/man1/$(progname).1
+	-rm -f "$(DESTDIR)$(mandir)/man1/$(progname).1"
 
 dist : doc
 	ln -sf $(VPATH) $(DISTNAME)

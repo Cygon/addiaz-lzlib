@@ -44,6 +44,7 @@ const CRC32 crc32;
 // Returns the number of bytes copied.
 int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size ) throw()
   {
+  if( out_size < 0 ) return 0;
   int size = 0;
   if( get > put )
     {
@@ -73,6 +74,7 @@ int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size )
 // Returns the number of bytes copied.
 int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
   {
+  if( in_size < 0 ) return 0;
   int size = 0;
   if( put >= get )
     {

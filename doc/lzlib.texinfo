@@ -5,8 +5,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 17 January 2010
-@set VERSION 0.8
+@set UPDATED 10 February 2010
+@set VERSION 0.9
 
 @dircategory Data Compression
 @direntry

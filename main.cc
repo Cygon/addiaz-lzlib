@@ -37,7 +37,6 @@
 #include <unistd.h>
 #include <utime.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 
 #include "arg_parser.h"
 #include "lzlib.h"
@@ -54,8 +53,8 @@
 
 void show_error( const char * msg, const int errcode = 0, const bool help = false ) throw();
 void internal_error( const char * msg );
-int readblock( const int fd, char * buf, const int size ) throw();
-int writeblock( const int fd, const char * buf, const int size ) throw();
+int readblock( const int fd, uint8_t * buf, const int size ) throw();
+int writeblock( const int fd, const uint8_t * buf, const int size ) throw();
 
 
 namespace {
@@ -64,6 +63,12 @@ const char * invocation_name = 0;
 const char * const Program_name    = "Minilzip";
 const char * const program_name    = "minilzip";
 const char * const program_year    = "2010";
+
+#ifdef O_BINARY
+const int o_binary = O_BINARY;
+#else
+const int o_binary = 0;
+#endif
 
 struct { const char * from; const char * to; } const known_extensions[] = {
   { ".lz",  ""     },
@@ -79,7 +84,7 @@ struct lzma_options
 enum Mode { m_compress = 0, m_decompress, m_test };
 
 std::string output_filename;
-int outhandle = -1;
+int outfd = -1;
 int verbosity = 0;
 bool delete_output_on_interrupt = false;
 
@@ -245,7 +250,7 @@ int open_instream( const std::string & name, struct stat * in_statsp,
                    const Mode program_mode, const int eindex,
                    const bool force, const bool to_stdout ) throw()
   {
-  int inhandle = -1;
+  int infd = -1;
   if( program_mode == m_compress && !force && eindex >= 0 )
     {
     if( verbosity >= 0 )
@@ -255,8 +260,8 @@ int open_instream( const std::string & name, struct stat * in_statsp,
     }
   else
     {
-    inhandle = open( name.c_str(), O_RDONLY );
-    if( inhandle < 0 )
+    infd = open( name.c_str(), O_RDONLY | o_binary );
+    if( infd < 0 )
       {
       if( verbosity >= 0 )
         std::fprintf( stderr, "%s: Can't open input file `%s': %s.\n",
@@ -264,7 +269,7 @@ int open_instream( const std::string & name, struct stat * in_statsp,
       }
     else
       {
-      const int i = fstat( inhandle, in_statsp );
+      const int i = fstat( infd, in_statsp );
       const mode_t & mode = in_statsp->st_mode;
       if( i < 0 || !( S_ISREG( mode ) || ( to_stdout &&
                       ( S_ISFIFO( mode ) || S_ISSOCK( mode ) ||
@@ -274,12 +279,12 @@ int open_instream( const std::string & name, struct stat * in_statsp,
           std::fprintf( stderr, "%s: input file `%s' is not a regular file%s.\n",
                         program_name, name.c_str(),
                         to_stdout ? "" : " and `--stdout' was not specified" );
-        close( inhandle );
-        inhandle = -1;
+        close( infd );
+        infd = -1;
         }
       }
     }
-  return inhandle;
+  return infd;
   }
 
 
@@ -313,16 +318,18 @@ void set_d_outname( const std::string & name, const int i ) throw()
 bool open_outstream( const bool force ) throw()
   {
   if( force )
-    outhandle = open( output_filename.c_str(), O_CREAT | O_TRUNC | O_WRONLY,
-                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
-  else outhandle = open( output_filename.c_str(), O_CREAT | O_EXCL | O_WRONLY,
-                         S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
-  if( outhandle < 0 )
+    outfd = open( output_filename.c_str(),
+                  O_CREAT | O_TRUNC | O_WRONLY | o_binary,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
+  else outfd = open( output_filename.c_str(),
+                     O_CREAT | O_EXCL | O_WRONLY | o_binary,
+                     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
+  if( outfd < 0 )
     {
-    if( errno == EEXIST ) outhandle = -2; else outhandle = -1;
+    if( errno == EEXIST ) outfd = -2; else outfd = -1;
     if( verbosity >= 0 )
       {
-      if( outhandle == -2 )
+      if( outfd == -2 )
         std::fprintf( stderr, "%s: Output file %s already exists, skipping.\n",
                       program_name, output_filename.c_str() );
       else
@@ -330,19 +337,19 @@ bool open_outstream( const bool force ) throw()
                       program_name, output_filename.c_str(), std::strerror( errno ) );
       }
     }
-  return ( outhandle >= 0 );
+  return ( outfd >= 0 );
   }
 
 
-bool check_tty( const int inhandle, const Mode program_mode ) throw()
+bool check_tty( const int infd, const Mode program_mode ) throw()
   {
-  if( program_mode == m_compress && isatty( outhandle ) )
+  if( program_mode == m_compress && isatty( outfd ) )
     {
     show_error( "I won't write compressed data to a terminal.", 0, true );
     return false;
     }
   if( ( program_mode == m_decompress || program_mode == m_test ) &&
-      isatty( inhandle ) )
+      isatty( infd ) )
     {
     show_error( "I won't read compressed data from a terminal.", 0, true );
     return false;
@@ -358,7 +365,7 @@ void cleanup_and_fail( const int retval ) throw()
     if( verbosity >= 0 )
       std::fprintf( stderr, "%s: Deleting output file `%s', if it exists.\n",
                program_name, output_filename.c_str() );
-    if( outhandle >= 0 ) { close( outhandle ); outhandle = -1; }
+    if( outfd >= 0 ) { close( outfd ); outfd = -1; }
     if( std::remove( output_filename.c_str() ) != 0 )
       show_error( "WARNING: deletion of output file (apparently) failed." );
     }
@@ -372,11 +379,11 @@ void close_and_set_permissions( const struct stat * const in_statsp )
   bool error = false;
   if( in_statsp )
     {
-    if( fchmod( outhandle, in_statsp->st_mode ) != 0 ) error = true;
-    else (void)fchown( outhandle, in_statsp->st_uid, in_statsp->st_gid );
+    if( fchmod( outfd, in_statsp->st_mode ) != 0 ) error = true;
+    else (void)fchown( outfd, in_statsp->st_uid, in_statsp->st_gid );
     // fchown will in many cases return with EPERM, which can be safely ignored.
     }
-  if( close( outhandle ) == 0 ) outhandle = -1;
+  if( close( outfd ) == 0 ) outfd = -1;
   else cleanup_and_fail( 1 );
   delete_output_on_interrupt = false;
   if( !in_statsp ) return;
@@ -409,28 +416,29 @@ bool next_filename()
 
 
 int do_compress( LZ_Encoder * const encoder, const long long member_size,
-                 const long long volume_size, const int inhandle,
+                 const long long volume_size, const int infd,
                  const Pretty_print & pp, const struct stat * const in_statsp )
   {
   long long partial_volume_size = 0;
-  const int out_buffer_size = 65536, in_buffer_size = 8 * out_buffer_size;
-  uint8_t in_buffer[in_buffer_size], out_buffer[out_buffer_size];
+  const int buffer_size = 65536;
+  uint8_t buffer[buffer_size];
 
-  if( verbosity >= 1 ) pp();
   while( true )
     {
-    int in_size = std::min( LZ_compress_write_size( encoder ), in_buffer_size );
-    if( in_size > 0 )
+    int in_size = 0;
+    while( LZ_compress_write_size( encoder ) > 0 )
       {
-      const int max_in_size = in_size;
-      in_size = readblock( inhandle, (char *)in_buffer, max_in_size );
-      if( in_size != max_in_size && errno )
+      const int size = std::min( LZ_compress_write_size( encoder ),
+                                 buffer_size );
+      const int rd = readblock( infd, buffer, size );
+      if( rd != size && errno )
         { pp(); show_error( "read error", errno ); return 1; }
-      if( in_size == 0 ) LZ_compress_finish( encoder );
-      else if( in_size != LZ_compress_write( encoder, in_buffer, in_size ) )
+      if( rd > 0 && rd != LZ_compress_write( encoder, buffer, rd ) )
         internal_error( "library error (LZ_compress_write)" );
+      if( rd < size ) LZ_compress_finish( encoder );
+      in_size += rd;
       }
-    int out_size = LZ_compress_read( encoder, out_buffer, out_buffer_size );
+    const int out_size = LZ_compress_read( encoder, buffer, buffer_size );
 //    std::fprintf( stderr, "%6d in_size, %5d out_size.\n", in_size, out_size );
     if( out_size < 0 )
       {
@@ -442,7 +450,7 @@ int do_compress( LZ_Encoder * const encoder, const long long member_size,
       }
     else if( out_size > 0 )
       {
-      const int wr = writeblock( outhandle, (char *)out_buffer, out_size );
+      const int wr = writeblock( outfd, buffer, out_size );
       if( wr != out_size )
         { pp(); show_error( "write error", errno ); return 1; }
       }
@@ -495,7 +503,7 @@ int do_compress( LZ_Encoder * const encoder, const long long member_size,
 
 
 int compress( const long long member_size, const long long volume_size,
-              const lzma_options & encoder_options, const int inhandle,
+              const lzma_options & encoder_options, const int infd,
               const Pretty_print & pp, const struct stat * const in_statsp )
   {
   LZ_Encoder * const encoder =
@@ -506,40 +514,54 @@ int compress( const long long member_size, const long long volume_size,
 
   if( !encoder || LZ_compress_errno( encoder ) != LZ_ok )
     {
-    if( LZ_compress_errno( encoder ) == LZ_mem_error )
+    if( !encoder || LZ_compress_errno( encoder ) == LZ_mem_error )
       pp( "not enough memory. Try a smaller dictionary size" );
     else
       internal_error( "invalid argument to encoder" );
     retval = 1;
     }
   else retval = do_compress( encoder, member_size, volume_size,
-                             inhandle, pp, in_statsp );
+                             infd, pp, in_statsp );
   LZ_compress_close( encoder );
   return retval;
   }
 
 
-int do_decompress( LZ_Decoder * const decoder, const int inhandle,
+int do_decompress( LZ_Decoder * const decoder, const int infd,
                    const Pretty_print & pp, const bool testing )
   {
-  const int in_buffer_size = 65536, out_buffer_size = 8 * in_buffer_size;
-  uint8_t in_buffer[in_buffer_size], out_buffer[out_buffer_size];
+  const int buffer_size = 65536;
+  uint8_t buffer[buffer_size];
 
-  if( verbosity >= 1 ) pp();
   while( true )
     {
-    int in_size = std::min( LZ_decompress_write_size( decoder ), in_buffer_size );
+    int in_size = std::min( LZ_decompress_write_size( decoder ), buffer_size );
     if( in_size > 0 )
       {
       const int max_in_size = in_size;
-      in_size = readblock( inhandle, (char *)in_buffer, max_in_size );
+      in_size = readblock( infd, buffer, max_in_size );
       if( in_size != max_in_size && errno )
         { pp(); show_error( "read error", errno ); return 1; }
-      if( in_size == 0 ) LZ_decompress_finish( decoder );
-      else if( in_size != LZ_decompress_write( decoder, in_buffer, in_size ) )
+      if( in_size > 0 && in_size != LZ_decompress_write( decoder, buffer, in_size ) )
         internal_error( "library error (LZ_decompress_write)" );
+      if( in_size < max_in_size ) LZ_decompress_finish( decoder );
       }
-    int out_size = LZ_decompress_read( decoder, out_buffer, out_buffer_size );
+    int out_size = 0;
+    while( true )
+      {
+      const int rd = LZ_decompress_read( decoder, buffer, buffer_size );
+      if( rd > 0 )
+        {
+        out_size += rd;
+        if( outfd >= 0 )
+          {
+          const int wr = writeblock( outfd, buffer, rd );
+          if( wr != rd )
+            { pp(); show_error( "write error", errno ); return 1; }
+          }
+        }
+      else { if( rd < 0 ) out_size = rd; break; }
+      }
 //    std::fprintf( stderr, "%5d in_size, %6d out_size.\n", in_size, out_size );
     if( out_size < 0 )
       {
@@ -569,16 +591,14 @@ int do_decompress( LZ_Decoder * const decoder, const int inhandle,
                       LZ_strerror( LZ_decompress_errno( decoder ) ) );
       return 1;
       }
-    else if( out_size > 0 && outhandle >= 0 )
-      {
-      const int wr = writeblock( outhandle, (char *)out_buffer, out_size );
-      if( wr != out_size )
-        { pp(); show_error( "write error", errno ); return 1; }
-      }
     if( LZ_decompress_finished( decoder ) == 1 ) break;
     if( in_size == 0 && out_size == 0 )
       internal_error( "library error (LZ_decompress_read)" );
     }
+  if( verbosity >= 2 )
+    std::fprintf( stderr, "decompressed size %9lld, size %9lld.  ",
+                  LZ_decompress_total_out_size( decoder ),
+                  LZ_decompress_total_in_size( decoder ) );
   if( verbosity >= 1 )
     { if( testing ) std::fprintf( stderr, "ok\n" );
       else std::fprintf( stderr, "done\n" ); }
@@ -586,7 +606,7 @@ int do_decompress( LZ_Decoder * const decoder, const int inhandle,
   }
 
 
-int decompress( const int inhandle, const Pretty_print & pp,
+int decompress( const int infd, const Pretty_print & pp,
                 const bool testing )
   {
   LZ_Decoder * const decoder = LZ_decompress_open();
@@ -597,7 +617,7 @@ int decompress( const int inhandle, const Pretty_print & pp,
     pp( "not enough memory. Find a machine with more memory" );
     retval = 1;
     }
-  else retval = do_decompress( decoder, inhandle, pp, testing );
+  else retval = do_decompress( decoder, infd, pp, testing );
 
   LZ_decompress_close( decoder );
   return retval;
@@ -665,7 +685,7 @@ void internal_error( const char * msg )
 // Returns the number of bytes really read.
 // If (returned value < size) and (errno == 0), means EOF was reached.
 //
-int readblock( const int fd, char * buf, const int size ) throw()
+int readblock( const int fd, uint8_t * buf, const int size ) throw()
   {
   int rest = size;
   errno = 0;
@@ -684,7 +704,7 @@ int readblock( const int fd, char * buf, const int size ) throw()
 // Returns the number of bytes really written.
 // If (returned value < size), it is always an error.
 //
-int writeblock( const int fd, const char * buf, const int size ) throw()
+int writeblock( const int fd, const uint8_t * buf, const int size ) throw()
   {
   int rest = size;
   errno = 0;
@@ -717,7 +737,7 @@ int main( const int argc, const char * argv[] )
   lzma_options encoder_options = option_mapping[5];	// default = "-6"
   long long member_size = LLONG_MAX;
   long long volume_size = LLONG_MAX;
-  int inhandle = -1;
+  int infd = -1;
   Mode program_mode = m_compress;
   bool force = false;
   bool keep_input_files = false;
@@ -805,11 +825,13 @@ int main( const int argc, const char * argv[] )
     }
 
   if( filenames.empty() ) filenames.push_back("-");
-  if( filenames_given ) set_signals();
+  if( !to_stdout && program_mode != m_test &&
+      ( filenames_given || default_output_filename.size() ) )
+    set_signals();
 
   Pretty_print pp( filenames );
   if( program_mode == m_test )
-    outhandle = -1;
+    outfd = -1;
 
   int retval = 0;
   for( unsigned int i = 0; i < filenames.size(); ++i )
@@ -820,11 +842,11 @@ int main( const int argc, const char * argv[] )
     if( !filenames[i].size() || filenames[i] == "-" )
       {
       input_filename.clear();
-      inhandle = STDIN_FILENO;
+      infd = STDIN_FILENO;
       if( program_mode != m_test )
         {
         if( to_stdout || !default_output_filename.size() )
-          outhandle = STDOUT_FILENO;
+          outfd = STDOUT_FILENO;
         else
           {
           if( program_mode == m_compress )
@@ -832,8 +854,8 @@ int main( const int argc, const char * argv[] )
           else output_filename = default_output_filename;
           if( !open_outstream( force ) )
             {
-            if( outhandle == -1 && retval < 1 ) retval = 1;
-            close( inhandle ); inhandle = -1;
+            if( outfd == -1 && retval < 1 ) retval = 1;
+            close( infd ); infd = -1;
             continue;
             }
           }
@@ -843,12 +865,12 @@ int main( const int argc, const char * argv[] )
       {
       input_filename = filenames[i];
       const int eindex = extension_index( input_filename );
-      inhandle = open_instream( input_filename, &in_stats, program_mode,
-                                eindex, force, to_stdout );
-      if( inhandle < 0 ) { if( retval < 1 ) retval = 1; continue; }
+      infd = open_instream( input_filename, &in_stats, program_mode,
+                            eindex, force, to_stdout );
+      if( infd < 0 ) { if( retval < 1 ) retval = 1; continue; }
       if( program_mode != m_test )
         {
-        if( to_stdout ) outhandle = STDOUT_FILENO;
+        if( to_stdout ) outfd = STDOUT_FILENO;
         else
           {
           if( program_mode == m_compress )
@@ -856,26 +878,27 @@ int main( const int argc, const char * argv[] )
           else set_d_outname( input_filename, eindex );
           if( !open_outstream( force ) )
             {
-            if( outhandle == -1 && retval < 1 ) retval = 1;
-            close( inhandle ); inhandle = -1;
+            if( outfd == -1 && retval < 1 ) retval = 1;
+            close( infd ); infd = -1;
             continue;
             }
           }
         }
       }
 
-    if( !check_tty( inhandle, program_mode ) ) return 1;
+    if( !check_tty( infd, program_mode ) ) return 1;
 
     if( output_filename.size() && !to_stdout && program_mode != m_test )
       delete_output_on_interrupt = true;
     const struct stat * const in_statsp = input_filename.size() ? &in_stats : 0;
     pp.set_name( input_filename );
+    if( verbosity >= 1 ) pp();
     int tmp = 0;
     if( program_mode == m_compress )
-      tmp = compress( member_size, volume_size, encoder_options, inhandle,
+      tmp = compress( member_size, volume_size, encoder_options, infd,
                       pp, in_statsp );
     else
-      tmp = decompress( inhandle, pp, program_mode == m_test );
+      tmp = decompress( infd, pp, program_mode == m_test );
     if( tmp > retval ) retval = tmp;
     if( tmp && program_mode != m_test ) cleanup_and_fail( retval );
 
@@ -883,12 +906,12 @@ int main( const int argc, const char * argv[] )
       close_and_set_permissions( in_statsp );
     if( input_filename.size() )
       {
-      close( inhandle ); inhandle = -1;
+      close( infd ); infd = -1;
       if( !keep_input_files && !to_stdout && program_mode != m_test )
         std::remove( input_filename.c_str() );
       }
     }
-  if( outhandle >= 0 && close( outhandle ) != 0 )
+  if( outfd >= 0 && close( outfd ) != 0 )
     {
     if( verbosity >= 0 )
       std::fprintf( stderr, "%s: Can't close stdout: %s.\n",
