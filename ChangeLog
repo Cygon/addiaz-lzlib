@@ -1,3 +1,15 @@
+2010-05-08  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 1.0 released.
+	* Added new function LZ_decompress_member_finished.
+	* Added new function LZ_decompress_member_version.
+	* Added new function LZ_decompress_dictionary_size.
+	* Added new function LZ_decompress_data_crc.
+	* Variables declared "extern" have been encapsulated in a
+	  namespace.
+	* main.cc: Fixed warning about fchown's return value being ignored.
+	* decoder.h: Input_buffer integrated in Range_decoder.
+
 2010-02-10  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.9 released.

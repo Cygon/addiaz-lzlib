@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-const char * const LZ_version_string = "0.9";
+const char * const LZ_version_string = "1.0";
 
 enum LZ_Errno { LZ_ok = 0,         LZ_bad_argument, LZ_mem_error,
                 LZ_sequence_error, LZ_header_error, LZ_unexpected_eof,
@@ -96,7 +96,11 @@ int LZ_decompress_write_size( struct LZ_Decoder * const decoder );
 
 enum LZ_Errno LZ_decompress_errno( struct LZ_Decoder * const decoder );
 int LZ_decompress_finished( struct LZ_Decoder * const decoder );
+int LZ_decompress_member_finished( struct LZ_Decoder * const decoder );
 
+int LZ_decompress_member_version( struct LZ_Decoder * const decoder );
+int LZ_decompress_dictionary_size( struct LZ_Decoder * const decoder );
+unsigned int LZ_decompress_data_crc( struct LZ_Decoder * const decoder );
 long long LZ_decompress_data_position( struct LZ_Decoder * const decoder );
 long long LZ_decompress_member_position( struct LZ_Decoder * const decoder );
 long long LZ_decompress_total_in_size( struct LZ_Decoder * const decoder );

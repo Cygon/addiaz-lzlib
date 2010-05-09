@@ -12,7 +12,7 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 0.9, 10 February 2010).
+This manual is for Lzlib (version 1.0, 8 May 2010).
 
 * Menu:
 
@@ -373,6 +373,28 @@ be verified by calling `LZ_decompress_errno' before using it.
      Returns 1 if all the data has been read and `LZ_decompress_close'
      can be safely called. Otherwise it returns 0.
 
+ -- Function: int LZ_decompress_member_finished ( struct LZ_Decoder *
+          const DECODER )
+     Returns 1 if the previous call to `LZ_decompress_read' finished
+     reading the current member, indicating that final values for
+     member are available through `LZ_decompress_data_crc',
+     `LZ_decompress_data_position', and
+     `LZ_decompress_member_position'. Otherwise it returns 0.
+
+ -- Function: int LZ_decompress_member_version ( struct LZ_Decoder *
+          const DECODER )
+     Returns the version of current member from member header.
+
+ -- Function: int LZ_decompress_dictionary_size ( struct LZ_Decoder *
+          const DECODER )
+     Returns the dictionary size of current member from member header.
+
+ -- Function: unsigned int LZ_decompress_data_crc ( struct LZ_Decoder *
+          const DECODER )
+     Returns the 32 bit Cyclic Redundancy Check of the data
+     decompressed from the current member. The returned value is valid
+     only when `LZ_decompress_member_finished' returns 1.
+
  -- Function: long long LZ_decompress_data_position ( struct LZ_Decoder
           * const DECODER )
      Returns the number of decompressed bytes already produced, but
@@ -575,6 +597,8 @@ Example 4: Decompression using LZ_decompress_write_size.
      3) LZ_decompress_write
      4) if no more data to write, call LZ_decompress_finish
      5) LZ_decompress_read
+     5a) optionally, if LZ_decompress_member_finished returns 1, read
+         final values for member with LZ_decompress_data_crc, etc.
      6) go back to step 2 until LZ_decompress_finished returns 1
      7) LZ_decompress_close
 
@@ -676,17 +700,17 @@ Concept Index
 
 Tag Table:
 Node: Top219
-Node: Introduction1158
-Node: Library Version2933
-Node: Buffering3578
-Node: Parameter Limits4698
-Node: Compression Functions5655
-Node: Decompression Functions11701
-Node: Error Codes16763
-Node: Error Messages18702
-Node: Data Format19281
-Node: Examples21251
-Node: Problems24827
-Node: Concept Index25399
+Node: Introduction1152
+Node: Library Version2927
+Node: Buffering3572
+Node: Parameter Limits4692
+Node: Compression Functions5649
+Node: Decompression Functions11695
+Node: Error Codes17766
+Node: Error Messages19705
+Node: Data Format20284
+Node: Examples22254
+Node: Problems25967
+Node: Concept Index26539
 
 End Tag Table

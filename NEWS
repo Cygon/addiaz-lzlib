@@ -1,3 +1,14 @@
-Changes in version 0.9:
+Changes in version 1.0:
 
-Compression time has been reduced by 8%.
+New functions:
+  LZ_decompress_member_finished.
+  LZ_decompress_member_version.
+  LZ_decompress_dictionary_size.
+  LZ_decompress_data_crc.
+
+Variables declared "extern" have been encapsulated in a namespace.
+
+A warning about fchown's return value being ignored has been fixed.
+
+Input_buffer has been integrated in Range_decoder, simplifying the code
+and making decompression slightly faster.

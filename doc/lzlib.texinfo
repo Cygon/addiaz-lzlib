@@ -5,8 +5,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 10 February 2010
-@set VERSION 0.9
+@set UPDATED 8 May 2010
+@set VERSION 1.0
 
 @dircategory Data Compression
 @direntry
@@ -424,6 +424,32 @@ can be safely called. Otherwise it returns 0.
 @end deftypefun
 
 
+@deftypefun int LZ_decompress_member_finished ( struct LZ_Decoder * const @var{decoder} )
+Returns 1 if the previous call to @samp{LZ_decompress_read} finished
+reading the current member, indicating that final values for member are
+available through @samp{LZ_decompress_data_crc},
+@samp{LZ_decompress_data_position}, and
+@samp{LZ_decompress_member_position}. Otherwise it returns 0.
+@end deftypefun
+
+
+@deftypefun int LZ_decompress_member_version ( struct LZ_Decoder * const @var{decoder} )
+Returns the version of current member from member header.
+@end deftypefun
+
+
+@deftypefun int LZ_decompress_dictionary_size ( struct LZ_Decoder * const @var{decoder} )
+Returns the dictionary size of current member from member header.
+@end deftypefun
+
+
+@deftypefun {unsigned int} LZ_decompress_data_crc ( struct LZ_Decoder * const @var{decoder} )
+Returns the 32 bit Cyclic Redundancy Check of the data decompressed from
+the current member. The returned value is valid only when
+@samp{LZ_decompress_member_finished} returns 1.
+@end deftypefun
+
+
 @deftypefun {long long} LZ_decompress_data_position ( struct LZ_Decoder * const @var{decoder} )
 Returns the number of decompressed bytes already produced, but perhaps
 not yet read, in the current member.
@@ -652,6 +678,8 @@ Example 4: Decompression using LZ_decompress_write_size.
 3) LZ_decompress_write
 4) if no more data to write, call LZ_decompress_finish
 5) LZ_decompress_read
+5a) optionally, if LZ_decompress_member_finished returns 1, read
+    final values for member with LZ_decompress_data_crc, etc.
 6) go back to step 2 until LZ_decompress_finished returns 1
 7) LZ_decompress_close
 @end example

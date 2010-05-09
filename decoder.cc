@@ -38,71 +38,11 @@
 #include "decoder.h"
 
 
-const CRC32 crc32;
-
-// Copies up to `out_size' bytes to `out_buffer' and updates `get'.
-// Returns the number of bytes copied.
-int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size ) throw()
-  {
-  if( out_size < 0 ) return 0;
-  int size = 0;
-  if( get > put )
-    {
-    size = std::min( buffer_size - get, out_size );
-    if( size > 0 )
-      {
-      std::memcpy( out_buffer, buffer + get, size );
-      get += size;
-      if( get >= buffer_size ) get = 0;
-      }
-    }
-  if( get < put )
-    {
-    const int size2 = std::min( put - get, out_size - size );
-    if( size2 > 0 )
-      {
-      std::memcpy( out_buffer + size, buffer + get, size2 );
-      get += size2;
-      size += size2;
-      }
-    }
-  return size;
-  }
-
-
-// Copies up to `in_size' bytes from `in_buffer' and updates `put'.
-// Returns the number of bytes copied.
-int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
-  {
-  if( in_size < 0 ) return 0;
-  int size = 0;
-  if( put >= get )
-    {
-    size = std::min( buffer_size - put - (get == 0), in_size );
-    if( size > 0 )
-      {
-      std::memcpy( buffer + put, in_buffer, size );
-      put += size;
-      if( put >= buffer_size ) put = 0;
-      }
-    }
-  if( put < get )
-    {
-    const int size2 = std::min( get - put - 1, in_size - size );
-    if( size2 > 0 )
-      {
-      std::memcpy( buffer + put, in_buffer + size, size2 );
-      put += size2;
-      size += size2;
-      }
-    }
-  return size;
-  }
-
+const CRC32 Lzlib_namespace::crc32;
 
 // Seeks a member header and updates `get'.
 // Returns true if it finds a valid header.
-bool Input_buffer::find_header() throw()
+bool Range_decoder::find_header() throw()
   {
   while( get != put )
     {
@@ -110,10 +50,10 @@ bool Input_buffer::find_header() throw()
       {
       int g = get;
       File_header header;
-      for( unsigned int i = 0; i < sizeof header; ++i )
+      for( int i = 0; i < File_header::size; ++i )
         {
         if( g == put ) return false;		// not enough data
-        ((uint8_t *)&header)[i] = buffer[g];
+        header.data[i] = buffer[g];
         if( ++g >= buffer_size ) g = 0;
         }
       if( header.verify() ) return true;
@@ -127,36 +67,44 @@ bool Input_buffer::find_header() throw()
 // Returns true, fills `header', and updates `get' if `get' points to a
 // valid header.
 // Else returns false and leaves `get' unmodified.
-bool Input_buffer::read_header( File_header & header ) throw()
+bool Range_decoder::read_header( File_header & header ) throw()
   {
   int g = get;
-  for( unsigned int i = 0; i < sizeof header; ++i )
+  for( int i = 0; i < File_header::size; ++i )
     {
     if( g == put ) return false;		// not enough data
-    ((uint8_t *)&header)[i] = buffer[g];
+    header.data[i] = buffer[g];
     if( ++g >= buffer_size ) g = 0;
     }
-  if( header.verify() ) { get = g; return true; }
+  if( header.verify() )
+    {
+    get = g;
+    member_pos = File_header::size;
+    reload_pending = true;
+    return true;
+    }
   return false;
   }
 
 
 bool LZ_decoder::verify_trailer()
   {
-  bool error = false;
   File_trailer trailer;
-  const int trailer_size = trailer.size( format_version );
+  const int trailer_size = File_trailer::size( member_version );
+  const long long member_size = range_decoder.member_position() + trailer_size;
+  bool error = false;
+
   for( int i = 0; i < trailer_size && !error; ++i )
     {
     if( !range_decoder.finished() )
-      ((uint8_t *)&trailer)[i] = range_decoder.get_byte();
-    else error = true;
+      trailer.data[i] = range_decoder.get_byte();
+    else { error = true; for( ; i < trailer_size; ++i ) trailer.data[i] = 0; }
     }
-  if( format_version == 0 ) trailer.member_size( member_position() );
+  if( member_version == 0 ) trailer.member_size( member_size );
   if( !range_decoder.code_is_zero() ) error = true;
   if( trailer.data_crc() != crc() ) error = true;
   if( trailer.data_size() != data_position() ) error = true;
-  if( trailer.member_size() != member_position() ) error = true;
+  if( trailer.member_size() != member_size ) error = true;
   return !error;
   }
 
@@ -169,7 +117,7 @@ int LZ_decoder::decode_member()
   if( !range_decoder.try_reload() ) return 0;
   if( verify_trailer_pending )
     {
-    if( range_decoder.available_bytes() < File_trailer::size( format_version ) &&
+    if( range_decoder.available_bytes() < File_trailer::size( member_version ) &&
         !range_decoder.at_stream_end() )
       return 0;
     verify_trailer_pending = false;
@@ -240,13 +188,13 @@ int LZ_decoder::decode_member()
             {
             rep0 += range_decoder.decode( direct_bits - dis_align_bits ) << dis_align_bits;
             rep0 += range_decoder.decode_tree_reversed( bm_align, dis_align_bits );
-            if( rep0 == 0xFFFFFFFF )		// Marker found
+            if( rep0 == 0xFFFFFFFFU )		// Marker found
               {
               rep0 = rep0_saved;
               range_decoder.normalize();
               if( len == min_match_len )	// End Of Stream marker
                 {
-                if( range_decoder.available_bytes() < File_trailer::size( format_version ) &&
+                if( range_decoder.available_bytes() < File_trailer::size( member_version ) &&
                     !range_decoder.at_stream_end() )
                   { verify_trailer_pending = true; return 0; }
                 member_finished_ = true;
@@ -268,4 +216,64 @@ int LZ_decoder::decode_member()
       copy_block( rep0, len );
       }
     }
+  }
+
+
+// Copies up to `out_size' bytes to `out_buffer' and updates `get'.
+// Returns the number of bytes copied.
+int Circular_buffer::read_data( uint8_t * const out_buffer, const int out_size ) throw()
+  {
+  if( out_size < 0 ) return 0;
+  int size = 0;
+  if( get > put )
+    {
+    size = std::min( buffer_size - get, out_size );
+    if( size > 0 )
+      {
+      std::memcpy( out_buffer, buffer + get, size );
+      get += size;
+      if( get >= buffer_size ) get = 0;
+      }
+    }
+  if( get < put )
+    {
+    const int size2 = std::min( put - get, out_size - size );
+    if( size2 > 0 )
+      {
+      std::memcpy( out_buffer + size, buffer + get, size2 );
+      get += size2;
+      size += size2;
+      }
+    }
+  return size;
+  }
+
+
+// Copies up to `in_size' bytes from `in_buffer' and updates `put'.
+// Returns the number of bytes copied.
+int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
+  {
+  if( in_size < 0 ) return 0;
+  int size = 0;
+  if( put >= get )
+    {
+    size = std::min( buffer_size - put - (get == 0), in_size );
+    if( size > 0 )
+      {
+      std::memcpy( buffer + put, in_buffer, size );
+      put += size;
+      if( put >= buffer_size ) put = 0;
+      }
+    }
+  if( put < get )
+    {
+    const int size2 = std::min( get - put - 1, in_size - size );
+    if( size2 > 0 )
+      {
+      std::memcpy( buffer + put, in_buffer + size, size2 );
+      put += size2;
+      size += size2;
+      }
+    }
+  return size;
   }

@@ -73,9 +73,10 @@ struct LZ_Decoder
   {
   long long partial_in_size;
   long long partial_out_size;
-  Input_buffer * ibuf;
+  Range_decoder * rdec;
   LZ_decoder * lz_decoder;
   LZ_Errno lz_errno;
+  File_header member_header;		// header of current member
   bool fatal;
   bool seeking;
 
@@ -83,19 +84,21 @@ struct LZ_Decoder
     :
     partial_in_size( 0 ),
     partial_out_size( 0 ),
-    ibuf( 0 ),
+    rdec( 0 ),
     lz_decoder( 0 ),
     lz_errno( LZ_ok ),
     fatal( false ),
     seeking( false )
-    {}
+    {
+    for( int i = 0; i < File_header::size; ++i ) member_header.data[i] = 0;
+    }
   };
 
 
 bool verify_decoder( struct LZ_Decoder * const decoder )
   {
   if( !decoder ) return false;
-  if( !decoder->ibuf )
+  if( !decoder->rdec )
     { decoder->lz_errno = LZ_bad_argument; return false; }
   return true;
   }
@@ -317,9 +320,9 @@ struct LZ_Decoder * LZ_decompress_open()
   if( !decoder ) return 0;
 
   LZ_Decoder & d = *decoder;
-  try { d.ibuf = new Input_buffer; }
+  try { d.rdec = new Range_decoder; }
   catch( std::bad_alloc )
-    { d.ibuf = 0; d.lz_errno = LZ_mem_error; d.fatal = true; }
+    { d.rdec = 0; d.lz_errno = LZ_mem_error; d.fatal = true; }
   return decoder;
   }
 
@@ -328,7 +331,7 @@ int LZ_decompress_close( struct LZ_Decoder * const decoder )
   {
   if( !decoder ) return -1;
   if( decoder->lz_decoder ) delete decoder->lz_decoder;
-  if( decoder->ibuf ) delete decoder->ibuf;
+  if( decoder->rdec ) delete decoder->rdec;
   delete decoder;
   return 0;
   }
@@ -338,8 +341,8 @@ int LZ_decompress_finish( struct LZ_Decoder * const decoder )
   {
   if( !verify_decoder( decoder ) || decoder->fatal ) return -1;
   LZ_Decoder & d = *decoder;
-  if( d.seeking ) { d.seeking = false; d.ibuf->purge(); }
-  else d.ibuf->finish();
+  if( d.seeking ) { d.seeking = false; d.rdec->purge(); }
+  else d.rdec->finish();
   return 0;
   }
 
@@ -351,7 +354,7 @@ int LZ_decompress_reset( struct LZ_Decoder * const decoder )
   if( d.lz_decoder ) { delete d.lz_decoder; d.lz_decoder = 0; }
   d.partial_in_size = 0;
   d.partial_out_size = 0;
-  d.ibuf->reset();
+  d.rdec->reset();
   d.lz_errno = LZ_ok;
   d.fatal = false;
   d.seeking = false;
@@ -364,11 +367,11 @@ int LZ_decompress_sync_to_member( struct LZ_Decoder * const decoder )
   if( !verify_decoder( decoder ) ) return -1;
   LZ_Decoder & d = *decoder;
   if( d.lz_decoder ) { delete d.lz_decoder; d.lz_decoder = 0; }
-  if( d.ibuf->find_header() ) d.seeking = false;
+  if( d.rdec->find_header() ) d.seeking = false;
   else
     {
-    if( !d.ibuf->at_stream_end() ) d.seeking = true;
-    else { d.seeking = false; d.ibuf->purge(); }
+    if( !d.rdec->at_stream_end() ) d.seeking = true;
+    else { d.seeking = false; d.rdec->purge(); }
     }
   d.lz_errno = LZ_ok;
   d.fatal = false;
@@ -391,22 +394,21 @@ int LZ_decompress_read( struct LZ_Decoder * const decoder,
     }
   if( !d.lz_decoder )
     {
-    if( d.ibuf->used_bytes() < 5 + (int)sizeof (File_header) )
+    if( d.rdec->used_bytes() < 5 + File_header::size )
       {
-      if( !d.ibuf->at_stream_end() || d.ibuf->finished() ) return 0;
-      d.ibuf->purge();			// remove trailing garbage
+      if( !d.rdec->at_stream_end() || d.rdec->finished() ) return 0;
+      d.rdec->purge();			// remove trailing garbage
       d.lz_errno = LZ_header_error;
       d.fatal = true;
       return -1;
       }
-    File_header header;
-    if( !d.ibuf->read_header( header ) )
+    if( !d.rdec->read_header( d.member_header ) )
       {
       d.lz_errno = LZ_header_error;
       d.fatal = true;
       return -1;
       }
-    try { d.lz_decoder = new LZ_decoder( header, *d.ibuf ); }
+    try { d.lz_decoder = new LZ_decoder( d.member_header, *d.rdec ); }
     catch( std::bad_alloc )		// not enough free memory
       {
       d.lz_decoder = 0;
@@ -432,12 +434,12 @@ int LZ_decompress_write( struct LZ_Decoder * const decoder,
   {
   if( !verify_decoder( decoder ) || decoder->fatal ) return -1;
   LZ_Decoder & d = *decoder;
-  int result = d.ibuf->write_data( buffer, size );
+  int result = d.rdec->write_data( buffer, size );
   while( d.seeking )
     {
-    if( d.ibuf->find_header() ) d.seeking = false;
+    if( d.rdec->find_header() ) d.seeking = false;
     if( result >= size ) break;
-    const int size2 = d.ibuf->write_data( buffer + result, size - result );
+    const int size2 = d.rdec->write_data( buffer + result, size - result );
     if( size2 > 0 ) result += size2;
     else break;
     }
@@ -448,7 +450,7 @@ int LZ_decompress_write( struct LZ_Decoder * const decoder,
 int LZ_decompress_write_size( struct LZ_Decoder * const decoder )
   {
   if( !verify_decoder( decoder ) || decoder->fatal ) return -1;
-  return decoder->ibuf->free_bytes();
+  return decoder->rdec->free_bytes();
   }
 
 
@@ -462,8 +464,37 @@ LZ_Errno LZ_decompress_errno( struct LZ_Decoder * const decoder )
 int LZ_decompress_finished( struct LZ_Decoder * const decoder )
   {
   if( !verify_decoder( decoder ) ) return -1;
-  return ( decoder->ibuf->finished() &&
+  return ( decoder->rdec->finished() &&
            ( !decoder->lz_decoder || decoder->lz_decoder->member_finished() ) );
+  }
+
+
+int LZ_decompress_member_finished( struct LZ_Decoder * const decoder )
+  {
+  if( !verify_decoder( decoder ) ) return -1;
+  return ( decoder->lz_decoder && decoder->lz_decoder->member_finished() );
+  }
+
+
+int LZ_decompress_member_version( struct LZ_Decoder * const decoder )
+  {
+  if( !verify_decoder( decoder ) ) return -1;
+  return decoder->member_header.version();
+  }
+
+
+int LZ_decompress_dictionary_size( struct LZ_Decoder * const decoder )
+  {
+  if( !verify_decoder( decoder ) ) return -1;
+  return decoder->member_header.dictionary_size();
+  }
+
+
+unsigned int LZ_decompress_data_crc( struct LZ_Decoder * const decoder )
+  {
+  if( verify_decoder( decoder ) && decoder->lz_decoder )
+    return decoder->lz_decoder->crc();
+  else return 0;
   }
 
 
