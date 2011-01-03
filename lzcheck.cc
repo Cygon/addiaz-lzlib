@@ -1,5 +1,5 @@
 /*  Lzcheck - A test program for the lzlib library
-    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
@@ -39,7 +39,7 @@ uint8_t mid_buffer[buffer_size];
 uint8_t out_buffer[buffer_size];
 
 
-int main( const int argc, const char * argv[] )
+int main( const int argc, const char * const argv[] )
   {
   if( argc < 2 )
     {
@@ -50,13 +50,14 @@ int main( const int argc, const char * argv[] )
   FILE *file = std::fopen( argv[1], "rb" );
   if( !file )
     {
-    std::fprintf( stderr, "Can't open file `%s' for reading\n", argv[1] );
+    std::fprintf( stderr,
+                  "lzcheck: Can't open file `%s' for reading\n", argv[1] );
     return 1;
     }
-//  std::fprintf( stderr, "lzcheck: testing file `%s'\n", argv[1] );
+//  std::fprintf( stderr, "lzcheck: Testing file `%s'\n", argv[1] );
 
   const int dictionary_size = 1 << 20;
-  const int match_len_limit = 80;
+  const int match_len_limit = 36;
   const long long member_size = LLONG_MAX;
   LZ_Encoder * encoder = LZ_compress_open( dictionary_size, match_len_limit,
                                            member_size );
@@ -66,10 +67,11 @@ int main( const int argc, const char * argv[] )
     LZ_compress_close( encoder );
     if( mem_error )
       {
-      std::fprintf( stderr, "not enough memory.\n" );
+      std::fprintf( stderr, "lzcheck: Not enough memory.\n" );
       return 1;
       }
-    std::fprintf( stderr, "internal error: invalid argument to encoder.\n" );
+    std::fprintf( stderr,
+                  "lzcheck: internal error: Invalid argument to encoder.\n" );
     return 3;
     }
 
@@ -77,7 +79,7 @@ int main( const int argc, const char * argv[] )
   if( !decoder || LZ_decompress_errno( decoder ) != LZ_ok )
     {
     LZ_decompress_close( decoder );
-    std::fprintf( stderr, "not enough memory.\n" );
+    std::fprintf( stderr, "lzcheck: Not enough memory.\n" );
     return 1;
     }
 
@@ -96,7 +98,7 @@ int main( const int argc, const char * argv[] )
       const int mid_size = LZ_compress_read( encoder, mid_buffer, buffer_size );
       if( mid_size < 0 )
         {
-        std::fprintf( stderr, "LZ_compress_read error: %s.\n",
+        std::fprintf( stderr, "lzcheck: LZ_compress_read error: %s.\n",
                       LZ_strerror( LZ_compress_errno( encoder ) ) );
         retval = 3; break;
         }
@@ -104,14 +106,14 @@ int main( const int argc, const char * argv[] )
       const int out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
       if( out_size < 0 )
         {
-        std::fprintf( stderr, "LZ_decompress_read error: %s.\n",
+        std::fprintf( stderr, "lzcheck: LZ_decompress_read error: %s.\n",
                       LZ_strerror( LZ_decompress_errno( decoder ) ) );
         retval = 3; break;
         }
 
       if( out_size != in_size || std::memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        std::fprintf( stderr, "sync error at pos %d. in_size = %d, out_size = %d\n",
+        std::fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d\n",
                       l, in_size, out_size );
         for( int i = 0; i < in_size; ++i )
           std::fputc( in_buffer[l+i], stderr );
@@ -133,7 +135,7 @@ int main( const int argc, const char * argv[] )
         LZ_decompress_read( decoder, out_buffer, buffer_size ) != 0 ||
         LZ_compress_restart_member( encoder, member_size ) < 0 )
       {
-      std::fprintf( stderr, "can't finish member: %s.\n",
+      std::fprintf( stderr, "lzcheck: Can't finish member: %s.\n",
                     LZ_strerror( LZ_decompress_errno( decoder ) ) );
       retval = 3;
       }
@@ -158,7 +160,7 @@ int main( const int argc, const char * argv[] )
                                              buffer_size - leading_garbage );
       if( mid_size < 0 )
         {
-        std::fprintf( stderr, "LZ_compress_read error: %s.\n",
+        std::fprintf( stderr, "lzcheck: LZ_compress_read error: %s.\n",
                       LZ_strerror( LZ_compress_errno( encoder ) ) );
         retval = 3; break;
         }
@@ -174,7 +176,7 @@ int main( const int argc, const char * argv[] )
           }
         if( out_size < 0 )
           {
-          std::fprintf( stderr, "LZ_decompress_read error: %s.\n",
+          std::fprintf( stderr, "lzcheck: LZ_decompress_read error: %s.\n",
                         LZ_strerror( LZ_decompress_errno( decoder ) ) );
           retval = 3; break;
           }
@@ -182,7 +184,7 @@ int main( const int argc, const char * argv[] )
 
       if( out_size != in_size || std::memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        std::fprintf( stderr, "sync error at pos %d. in_size = %d, out_size = %d\n",
+        std::fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d\n",
                       l, in_size, out_size );
         for( int i = 0; i < in_size; ++i )
           std::fputc( in_buffer[l+i], stderr );
@@ -202,7 +204,7 @@ int main( const int argc, const char * argv[] )
         LZ_decompress_reset( decoder ) < 0 ||
         LZ_compress_restart_member( encoder, member_size ) < 0 )
       {
-      std::fprintf( stderr, "can't restart member: %s.\n",
+      std::fprintf( stderr, "lzcheck: Can't restart member: %s.\n",
                     LZ_strerror( LZ_decompress_errno( decoder ) ) );
       retval = 3; break;
       }
@@ -215,7 +217,7 @@ int main( const int argc, const char * argv[] )
         LZ_decompress_sync_to_member( decoder ) < 0 ||
         LZ_compress_restart_member( encoder, member_size ) < 0 )
       {
-      std::fprintf( stderr, "can't seek to next member: %s.\n",
+      std::fprintf( stderr, "lzcheck: Can't seek to next member: %s.\n",
                     LZ_strerror( LZ_decompress_errno( decoder ) ) );
       retval = 3; break;
       }

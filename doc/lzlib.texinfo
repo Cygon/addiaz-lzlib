@@ -5,8 +5,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 8 May 2010
-@set VERSION 1.0
+@set UPDATED 3 January 2011
+@set VERSION 1.1
 
 @dircategory Data Compression
 @direntry
@@ -14,6 +14,7 @@
 @end direntry
 
 
+@ifnothtml
 @titlepage
 @title Lzlib
 @subtitle A compression library for lzip files
@@ -25,6 +26,7 @@
 @end titlepage
 
 @contents
+@end ifnothtml
 
 @node Top
 @top
@@ -32,22 +34,22 @@
 This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 
 @menu
-* Introduction::		Purpose and features of Lzlib
-* Library Version::		Checking library version
-* Buffering::			Sizes of Lzlib's buffers
-* Parameter Limits::		Min / max values for some parameters
-* Compression Functions::	Descriptions of the compression functions
-* Decompression Functions::	Descriptions of the decompression functions
-* Error Codes::			Meaning of codes returned by functions
-* Error Messages::		Error messages corresponding to error codes
-* Data Format::			Detailed format of the compressed data
-* Examples::			A small tutorial with examples
-* Problems::			Reporting bugs
-* Concept Index::		Index of concepts
+* Introduction::                Purpose and features of Lzlib
+* Library Version::             Checking library version
+* Buffering::                   Sizes of Lzlib's buffers
+* Parameter Limits::            Min / max values for some parameters
+* Compression Functions::       Descriptions of the compression functions
+* Decompression Functions::     Descriptions of the decompression functions
+* Error Codes::                 Meaning of codes returned by functions
+* Error Messages::              Error messages corresponding to error codes
+* Data Format::                 Detailed format of the compressed data
+* Examples::                    A small tutorial with examples
+* Problems::                    Reporting bugs
+* Concept Index::               Index of concepts
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009, 2010 Antonio Diaz Diaz.
+Copyright @copyright{} 2009, 2010, 2011 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -59,14 +61,15 @@ to copy, distribute and modify it.
 
 Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
-uncompressed data. The compressed data format used by the library is the
+decompressed data. The compressed data format used by the library is the
 lzip format.
 
 The functions and variables forming the interface of the compression
-library are declared in the file @samp{lzlib.h}. An usage example of the
-library is given in the file main.cc.
+library are declared in the file @samp{lzlib.h}. Usage examples of the
+library are given in the files @samp{main.cc} and @samp{bbexample.cc}
+from the source distribution.
 
-Compression/decompression is done by repeteadly calling a couple of
+Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data has been processed by the
 library. This interface is safer and less error prone than the
 traditional zlib interface.
@@ -79,7 +82,7 @@ the data to be compressed in advance, just call the read function with a
 
 Lzlib will correctly decompress a data stream which is the concatenation
 of two or more compressed data streams. The result is the concatenation
-of the corresponding uncompressed data streams. Integrity testing of
+of the corresponding decompressed data streams. Integrity testing of
 concatenated compressed data streams is also supported.
 
 All the library functions are thread safe. The library does not install
@@ -617,9 +620,11 @@ safe recovery of undamaged members from multimember files.
 @chapter A small tutorial with examples
 @cindex examples
 
-This chaper shows the order in which the library functions should be
+This chapter shows the order in which the library functions should be
 called depending on what kind of data stream you want to compress or
-decompress.
+decompress. See the file @samp{bbexample.cc} in the source distribution
+for an example of how buffer-to-buffer compression/decompression can be
+implemented using lzlib.
 
 @sp 1
 @noindent

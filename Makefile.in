@@ -20,22 +20,25 @@ objs        = arg_parser.o main.o
 all : $(progname) $(progname_shared)
 
 lib$(libname).a: $(lib_objs)
-	$(AR) -rcs lib$(libname).a $(lib_objs)
+	$(AR) -rcs $@ $^
 
 lib$(libname).so.$(pkgversion) : $(sh_lib_objs)
-	$(CXX) -shared -Wl,--soname=lib$(libname).so.$(soversion) -o lib$(libname).so.$(pkgversion) $(sh_lib_objs)
+	$(CXX) -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $^
 
 $(progname) : $(objs) lib$(libname).a
-	$(CXX) $(LDFLAGS) -o $(progname) $(objs) lib$(libname).a
+	$(CXX) $(LDFLAGS) -o $@ $^
 
 $(progname)_shared : $(objs) lib$(libname).so.$(pkgversion)
-	$(CXX) $(LDFLAGS) -o $(progname)_shared $(objs) lib$(libname).so.$(pkgversion)
+	$(CXX) $(LDFLAGS) -o $@ $^
 
 $(progname)_profiled : $(objs) lib$(libname).a
-	$(CXX) $(LDFLAGS) -pg -o $(progname)_profiled $(objs) lib$(libname).a
+	$(CXX) $(LDFLAGS) -pg -o $@ $^
+
+bbexample : bbexample.o lib$(libname).a
+	$(CXX) $(LDFLAGS) -o $@ $^
 
 lzcheck : lzcheck.o lib$(libname).a
-	$(CXX) $(LDFLAGS) -o lzcheck lzcheck.o lib$(libname).a
+	$(CXX) $(LDFLAGS) -o $@ $^
 
 main.o : main.cc
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
@@ -44,13 +47,13 @@ main.o : main.cc
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 sh_decoder.o : decoder.cc
-	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o sh_decoder.o $<
+	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 sh_encoder.o : encoder.cc
-	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o sh_encoder.o $<
+	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 sh_lzlib.o : lzlib.cc
-	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o sh_lzlib.o $<
+	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 $(lib_objs)    : Makefile lzlib.h lzip.h
 $(sh_lib_objs) : Makefile lzlib.h lzip.h
@@ -63,6 +66,7 @@ sh_decoder.o   : decoder.h
 sh_encoder.o   : encoder.h
 sh_lzlib.o     : decoder.h encoder.h
 main.o         : arg_parser.h lzlib.h
+bbexample.o    : Makefile lzlib.h
 lzcheck.o      : Makefile lzlib.h
 
 
@@ -76,14 +80,14 @@ $(VPATH)/doc/$(pkgname).info : $(VPATH)/doc/$(pkgname).texinfo
 man : $(VPATH)/doc/$(progname).1
 
 $(VPATH)/doc/$(progname).1 : $(progname)
-	help2man -n 'test program for the lzlib library' \
-	  -o $(VPATH)/doc/$(progname).1 --no-info ./$(progname)
+	help2man -n 'reduces the size of files' \
+	  -o $@ --no-info ./$(progname)
 
 Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 	./config.status
 
-check : all lzcheck
-	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite
+check : all bbexample lzcheck
+	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite $(pkgversion)
 
 install : all install-info
 	if [ ! -d "$(DESTDIR)$(includedir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(includedir)" ; fi
@@ -112,7 +116,7 @@ install-man :
 install-strip : all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
-uninstall : uninstall-info
+uninstall : uninstall-info uninstall-man
 	-rm -f "$(DESTDIR)$(includedir)/$(libname)lib.h"
 	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).a"
 	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)"
@@ -139,17 +143,18 @@ dist : doc
 	  $(DISTNAME)/doc/$(pkgname).info \
 	  $(DISTNAME)/doc/$(pkgname).texinfo \
 	  $(DISTNAME)/testsuite/check.sh \
-	  $(DISTNAME)/testsuite/test1 \
-	  $(DISTNAME)/testsuite/test1.lz \
+	  $(DISTNAME)/testsuite/test.txt \
+	  $(DISTNAME)/testsuite/test_sync.lz \
+	  $(DISTNAME)/testsuite/test_v[01].lz \
 	  $(DISTNAME)/*.h \
 	  $(DISTNAME)/*.cc
 	rm -f $(DISTNAME)
 	lzip -v -9 $(DISTNAME).tar
 
 clean :
-	-rm -f $(progname) $(progname)_profiled $(objs) $(lib_objs) *.a
+	-rm -f $(progname) $(progname)_profiled $(objs)
 	-rm -f $(progname)_shared $(sh_lib_objs) *.so.$(pkgversion)
-	-rm -f lzcheck.o
+	-rm -f bbexample bbexample.o lzcheck lzcheck.o $(lib_objs) *.a
 
 distclean : clean
 	-rm -f Makefile config.status *.tar *.tar.lz

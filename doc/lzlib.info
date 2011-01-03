@@ -12,25 +12,25 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 1.0, 8 May 2010).
+This manual is for Lzlib (version 1.1, 3 January 2011).
 
 * Menu:
 
-* Introduction::		Purpose and features of Lzlib
-* Library Version::		Checking library version
-* Buffering::			Sizes of Lzlib's buffers
-* Parameter Limits::		Min / max values for some parameters
-* Compression Functions::	Descriptions of the compression functions
-* Decompression Functions::	Descriptions of the decompression functions
-* Error Codes::			Meaning of codes returned by functions
-* Error Messages::		Error messages corresponding to error codes
-* Data Format::			Detailed format of the compressed data
-* Examples::			A small tutorial with examples
-* Problems::			Reporting bugs
-* Concept Index::		Index of concepts
+* Introduction::                Purpose and features of Lzlib
+* Library Version::             Checking library version
+* Buffering::                   Sizes of Lzlib's buffers
+* Parameter Limits::            Min / max values for some parameters
+* Compression Functions::       Descriptions of the compression functions
+* Decompression Functions::     Descriptions of the decompression functions
+* Error Codes::                 Meaning of codes returned by functions
+* Error Messages::              Error messages corresponding to error codes
+* Data Format::                 Detailed format of the compressed data
+* Examples::                    A small tutorial with examples
+* Problems::                    Reporting bugs
+* Concept Index::               Index of concepts
 
 
-   Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+   Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
    This manual is free documentation: you have unlimited permission to
 copy, distribute and modify it.
@@ -43,14 +43,15 @@ File: lzlib.info,  Node: Introduction,  Next: Library Version,  Prev: Top,  Up: 
 
 Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
-uncompressed data. The compressed data format used by the library is the
+decompressed data. The compressed data format used by the library is the
 lzip format.
 
    The functions and variables forming the interface of the compression
-library are declared in the file `lzlib.h'. An usage example of the
-library is given in the file main.cc.
+library are declared in the file `lzlib.h'. Usage examples of the
+library are given in the files `main.cc' and `bbexample.cc' from the
+source distribution.
 
-   Compression/decompression is done by repeteadly calling a couple of
+   Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data has been processed by the
 library. This interface is safer and less error prone than the
 traditional zlib interface.
@@ -63,7 +64,7 @@ function with a SIZE equal to 0.
 
    Lzlib will correctly decompress a data stream which is the
 concatenation of two or more compressed data streams. The result is the
-concatenation of the corresponding uncompressed data streams. Integrity
+concatenation of the corresponding decompressed data streams. Integrity
 testing of concatenated compressed data streams is also supported.
 
    All the library functions are thread safe. The library does not
@@ -550,9 +551,11 @@ File: lzlib.info,  Node: Examples,  Next: Problems,  Prev: Data Format,  Up: Top
 10 A small tutorial with examples
 *********************************
 
-This chaper shows the order in which the library functions should be
+This chapter shows the order in which the library functions should be
 called depending on what kind of data stream you want to compress or
-decompress.
+decompress. See the file `bbexample.cc' in the source distribution for
+an example of how buffer-to-buffer compression/decompression can be
+implemented using lzlib.
 
 
 Example 1: Normal compression (MEMBER_SIZE > total output).
@@ -700,17 +703,17 @@ Concept Index
 
 Tag Table:
 Node: Top219
-Node: Introduction1152
-Node: Library Version2927
-Node: Buffering3572
-Node: Parameter Limits4692
-Node: Compression Functions5649
-Node: Decompression Functions11695
-Node: Error Codes17766
-Node: Error Messages19705
-Node: Data Format20284
-Node: Examples22254
-Node: Problems25967
-Node: Concept Index26539
+Node: Introduction1310
+Node: Library Version3135
+Node: Buffering3780
+Node: Parameter Limits4900
+Node: Compression Functions5857
+Node: Decompression Functions11903
+Node: Error Codes17974
+Node: Error Messages19913
+Node: Data Format20492
+Node: Examples22462
+Node: Problems26328
+Node: Concept Index26900
 
 End Tag Table

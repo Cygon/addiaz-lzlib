@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
     reasons why the executable file might be covered by the GNU General
     Public License.
 */
+
+namespace Lzlib {
 
 class Range_decoder : public Circular_buffer
   {
@@ -51,7 +53,8 @@ public:
   bool finished() const throw() { return at_stream_end_ && !used_bytes(); }
   int free_bytes() const throw()
     { if( at_stream_end_ ) return 0; return Circular_buffer::free_bytes(); }
-  long long member_position() const throw() { return member_pos; }
+  long long member_position() const throw()
+    { return member_pos; }
   void purge() throw() { at_stream_end_ = true; Circular_buffer::reset(); }
   void reset() throw() { at_stream_end_ = false; Circular_buffer::reset(); }
 
@@ -211,7 +214,8 @@ public:
 
   uint8_t decode_matched( Range_decoder & range_decoder,
                           const uint8_t prev_byte, const uint8_t match_byte )
-    { return range_decoder.decode_matched( bm_literal[lstate(prev_byte)], match_byte ); }
+    { return range_decoder.decode_matched( bm_literal[lstate(prev_byte)],
+                                           match_byte ); }
   };
 
 
@@ -219,9 +223,9 @@ class LZ_decoder : public Circular_buffer
   {
   enum { min_free_bytes = max_match_len };
   long long partial_data_pos;
-  const int member_version;
   const int dictionary_size;
   uint32_t crc_;
+  const int member_version;
   bool member_finished_;
   bool verify_trailer_pending;
   unsigned int rep0;		// rep[0-3] latest four distances
@@ -237,13 +241,21 @@ class LZ_decoder : public Circular_buffer
   Bit_model bm_rep2[State::states];
   Bit_model bm_len[State::states][pos_states];
   Bit_model bm_dis_slot[max_dis_states][1<<dis_slot_bits];
-  Bit_model bm_dis[modeled_distances-end_dis_model];
+  Bit_model bm_dis[modeled_distances-end_dis_model+1];
   Bit_model bm_align[dis_align_size];
 
   Range_decoder & range_decoder;
   Len_decoder len_decoder;
   Len_decoder rep_match_len_decoder;
   Literal_decoder literal_decoder;
+
+  bool verify_trailer();
+
+  uint8_t get_prev_byte() const throw()
+    {
+    const int i = ( ( put > 0 ) ? put : buffer_size ) - 1;
+    return buffer[i];
+    }
 
   uint8_t get_byte( const int distance ) const throw()
     {
@@ -278,16 +290,14 @@ class LZ_decoder : public Circular_buffer
       }
     }
 
-  bool verify_trailer();
-
 public:
   LZ_decoder( const File_header & header, Range_decoder & rdec )
     :
     Circular_buffer( std::max( 65536, header.dictionary_size() ) + min_free_bytes ),
     partial_data_pos( 0 ),
-    member_version( header.version() ),
     dictionary_size( header.dictionary_size() ),
     crc_( 0xFFFFFFFFU ),
+    member_version( header.version() ),
     member_finished_( false ),
     verify_trailer_pending( false ),
     rep0( 0 ),
@@ -301,12 +311,13 @@ public:
     { return free_bytes() >= min_free_bytes; }
 
   uint32_t crc() const throw() { return crc_ ^ 0xFFFFFFFFU; }
-  int decode_member();
   bool member_finished() const throw()
     { return ( member_finished_ && !used_bytes() ); }
 
-  long long member_position() const throw()
-    { return range_decoder.member_position(); }
   long long data_position() const throw()
     { return partial_data_pos + put; }
+
+  int decode_member();
   };
+
+} // end namespace Lzlib

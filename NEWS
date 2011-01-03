@@ -1,14 +1,16 @@
-Changes in version 1.0:
+Changes in version 1.1:
 
-New functions:
-  LZ_decompress_member_finished.
-  LZ_decompress_member_version.
-  LZ_decompress_dictionary_size.
-  LZ_decompress_data_crc.
+Compression time has been reduced by 2%.
 
-Variables declared "extern" have been encapsulated in a namespace.
+All declarations not belonging to the API have been encapsulated in the
+namespace "Lzlib".
 
-A warning about fchown's return value being ignored has been fixed.
+New tests have been added to the testsuite.
 
-Input_buffer has been integrated in Range_decoder, simplifying the code
-and making decompression slightly faster.
+Match length limits set by options -1 to -9 of minilzip have been
+changed to match those of lzip 1.11.
+
+Minilzip now sets stdin and stdout in binary mode on OS2.
+
+The file bbexample.cc, containing example functions for buffer-to-buffer
+compression/decompression, has been added.

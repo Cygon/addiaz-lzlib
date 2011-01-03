@@ -2,21 +2,22 @@ Description
 
 Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
-uncompressed data. The compressed data format used by the library is the
+decompressed data. The compressed data format used by the library is the
 lzip format.
 
 The functions and variables forming the interface of the compression
-library are declared in the file lzlib.h. An usage example of the
-library is given in the file main.cc.
+library are declared in the file lzlib.h. Usage examples of the library
+are given in the files main.cc and bbexample.cc from the source
+distribution.
 
-Compression/decompression is done by repeteadly calling a couple of
+Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data has been processed by the
 library. This interface is safer and less error prone than the
 traditional zlib interface.
 
 Lzlib will correctly decompress a data stream which is the concatenation
 of two or more compressed data streams. The result is the concatenation
-of the corresponding uncompressed data streams. Integrity testing of
+of the corresponding decompressed data streams. Integrity testing of
 concatenated compressed data streams is also supported.
 
 All the library functions are thread safe. The library does not install
@@ -29,11 +30,11 @@ Igor Pavlov. For a description of the LZMA algorithm, see the Lzip
 manual.
 
 
-Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
 This file is free documentation: you have unlimited permission to copy,
 distribute and modify it.
 
 The file Makefile.in is a data file used by configure to produce the
-Makefile. It has the same copyright owner and permissions that this
-file.
+Makefile. It has the same copyright owner and permissions that configure
+itself.

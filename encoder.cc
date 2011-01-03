@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,8 +38,10 @@
 #include "encoder.h"
 
 
-const Dis_slots Lzlib_namespace::dis_slots;
-const Prob_prices Lzlib_namespace::prob_prices;
+namespace Lzlib {
+
+const Dis_slots dis_slots;
+const Prob_prices prob_prices;
 
 
 int Matchfinder::write_data( const uint8_t * const in_buffer, const int in_size ) throw()
@@ -62,16 +64,17 @@ Matchfinder::Matchfinder( const int dict_size, const int len_limit )
   buffer_size( ( 2 * std::max( 65536, dictionary_size_ ) ) +
                before_size + after_size ),
   buffer( new( std::nothrow ) uint8_t[buffer_size] ),
+  prev_positions( new( std::nothrow ) int32_t[num_prev_positions] ),
+  prev_pos_tree( new( std::nothrow ) int32_t[2*dictionary_size_] ),
   pos( 0 ),
   cyclic_pos( 0 ),
   stream_pos( 0 ),
   pos_limit( buffer_size - after_size ),
   match_len_limit_( len_limit ),
-  prev_positions( new( std::nothrow ) int32_t[num_prev_positions] ),
+  cycles( ( len_limit < max_match_len ) ? 16 + ( len_limit / 2 ) : 256 ),
   at_stream_end_( false ),
   been_flushed( false )
   {
-  prev_pos_tree = new( std::nothrow ) int32_t[2*dictionary_size_];
   if( !buffer || !prev_positions || !prev_pos_tree )
     {
     if( prev_pos_tree ) delete[] prev_pos_tree;
@@ -102,7 +105,8 @@ bool Matchfinder::move_pos() throw()
   if( ++cyclic_pos >= dictionary_size_ ) cyclic_pos = 0;
   if( ++pos >= pos_limit )
     {
-    if( pos > stream_pos ) { pos = stream_pos; return false; }
+    if( pos > stream_pos )
+      { pos = stream_pos; return false; }
     else
       {
       const int offset = pos - dictionary_size_ - before_size;
@@ -123,15 +127,14 @@ bool Matchfinder::move_pos() throw()
 
 int Matchfinder::longest_match_len( int * const distances ) throw()
   {
-  int idx0 = cyclic_pos << 1;
-  int idx1 = idx0 + 1;
+  int32_t * ptr0 = prev_pos_tree + ( cyclic_pos << 1 );
+  int32_t * ptr1 = ptr0 + 1;
   int len_limit = match_len_limit_;
   if( len_limit > available_bytes() )
     {
     been_flushed = true;
     len_limit = available_bytes();
-    if( len_limit < 4 )
-      { prev_pos_tree[idx0] = prev_pos_tree[idx1] = -1; return 0; }
+    if( len_limit < 4 ) { *ptr0 = *ptr1 = -1; return 0; }
     }
 
   int maxlen = min_match_len - 1;
@@ -166,10 +169,9 @@ int Matchfinder::longest_match_len( int * const distances ) throw()
 
   int len = 0, len0 = 0, len1 = 0;
 
-  for( int count = 16 + ( match_len_limit_ / 2 ); ; )
+  for( int count = cycles; ; )
     {
-    if( newpos < min_pos || --count < 0 )
-      { prev_pos_tree[idx0] = prev_pos_tree[idx1] = -1; break; }
+    if( newpos < min_pos || --count < 0 ) { *ptr0 = *ptr1 = -1; break; }
     const uint8_t * const newdata = buffer + newpos;
     if( been_flushed ) len = 0;
     while( len < len_limit && newdata[len] == data[len] ) ++len;
@@ -177,30 +179,31 @@ int Matchfinder::longest_match_len( int * const distances ) throw()
     const int delta = pos - newpos;
     if( distances ) while( maxlen < len ) distances[++maxlen] = delta - 1;
 
-    const int newidx = ( cyclic_pos - delta +
-      ( ( cyclic_pos >= delta ) ? 0 : dictionary_size_ ) ) << 1;
+    int32_t * const newptr = prev_pos_tree +
+      ( ( cyclic_pos - delta +
+          ( ( cyclic_pos >= delta ) ? 0 : dictionary_size_ ) ) << 1 );
 
     if( len < len_limit )
       {
       if( newdata[len] < data[len] )
         {
-        prev_pos_tree[idx0] = newpos;
-        idx0 = newidx + 1;
-        newpos = prev_pos_tree[idx0];
+        *ptr0 = newpos;
+        ptr0 = newptr + 1;
+        newpos = *ptr0;
         len0 = len; if( len1 < len ) len = len1;
         }
       else
         {
-        prev_pos_tree[idx1] = newpos;
-        idx1 = newidx;
-        newpos = prev_pos_tree[idx1];
+        *ptr1 = newpos;
+        ptr1 = newptr;
+        newpos = *ptr1;
         len1 = len; if( len0 < len ) len = len0;
         }
       }
     else
       {
-      prev_pos_tree[idx0] = prev_pos_tree[newidx];
-      prev_pos_tree[idx1] = prev_pos_tree[newidx+1];
+      *ptr0 = newptr[0];
+      *ptr1 = newptr[1];
       break;
       }
     }
@@ -250,6 +253,17 @@ void LZ_encoder::fill_align_prices() throw()
 
 void LZ_encoder::fill_distance_prices() throw()
   {
+  for( int dis = start_dis_model; dis < modeled_distances; ++dis )
+    {
+    const int dis_slot = dis_slots.table( dis );
+    const int direct_bits = ( dis_slot >> 1 ) - 1;
+    const int base = ( 2 | ( dis_slot & 1 ) ) << direct_bits;
+    const int price =
+      price_symbol_reversed( bm_dis + base - dis_slot, dis - base, direct_bits );
+    for( int dis_state = 0; dis_state < max_dis_states; ++dis_state )
+      dis_prices[dis_state][dis] = price;
+    }
+
   for( int dis_state = 0; dis_state < max_dis_states; ++dis_state )
     {
     int * const dsp = dis_slot_prices[dis_state];
@@ -266,13 +280,7 @@ void LZ_encoder::fill_distance_prices() throw()
     for( ; dis < start_dis_model; ++dis )
       dp[dis] = dsp[dis];
     for( ; dis < modeled_distances; ++dis )
-      {
-      const int dis_slot = dis_slots[dis];
-      const int direct_bits = ( dis_slot >> 1 ) - 1;
-      const int base = ( 2 | ( dis_slot & 1 ) ) << direct_bits;
-      dp[dis] = dsp[dis_slot] +
-          price_symbol_reversed( bm_dis + base - dis_slot, dis - base, direct_bits );
-      }
+      dp[dis] += dsp[dis_slots.table( dis )];
     }
   }
 
@@ -415,7 +423,8 @@ int LZ_encoder::sequence_optimizer( const int reps[num_rep_distances],
     const uint8_t cur_byte = matchfinder[0];
     const uint8_t match_byte = matchfinder[-cur_trial.reps[0]-1];
 
-    int next_price = cur_trial.price + price0( bm_match[cur_trial.state()][pos_state] );
+    int next_price = cur_trial.price +
+                     price0( bm_match[cur_trial.state()][pos_state] );
     if( cur_trial.state.is_char() )
       next_price += literal_encoder.price_symbol( prev_byte, cur_byte );
     else
@@ -519,7 +528,7 @@ LZ_encoder::LZ_encoder( Matchfinder & mf, const File_header & header,
   matchfinder( mf ),
   len_encoder( matchfinder.match_len_limit() ),
   rep_match_len_encoder( matchfinder.match_len_limit() ),
-  num_dis_slots( 2 * File_header::real_bits( matchfinder.dictionary_size() - 1 ) ),
+  num_dis_slots( 2 * real_bits( matchfinder.dictionary_size() - 1 ) ),
   fill_counter( 0 ),
   member_finished_( false )
   {
@@ -533,6 +542,7 @@ LZ_encoder::LZ_encoder( Matchfinder & mf, const File_header & header,
 
 bool LZ_encoder::encode_member( const bool finish )
   {
+  const int fill_count = ( matchfinder.match_len_limit() > 12 ) ? 512 : 2048;
   State & state = main_state;
   if( member_finished_ ) return true;
   if( range_encoder.member_position() >= member_size_limit )
@@ -543,9 +553,9 @@ bool LZ_encoder::encode_member( const bool finish )
     {
     if( matchfinder.available_bytes() < 4 && !matchfinder.at_stream_end() )
       return true;
-    range_encoder.encode_bit( bm_match[state()][0], 0 );
     const uint8_t prev_byte = 0;
     const uint8_t cur_byte = matchfinder[0];
+    range_encoder.encode_bit( bm_match[state()][0], 0 );
     literal_encoder.encode( range_encoder, prev_byte, cur_byte );
     crc32.update( crc_, cur_byte );
     if( !move_pos( 1 ) ) return false;
@@ -560,7 +570,8 @@ bool LZ_encoder::encode_member( const bool finish )
       }
     if( !matchfinder.enough_available_bytes() ||
         !range_encoder.enough_free_bytes() ) return true;
-    if( fill_counter <= 0 ) { fill_distance_prices(); fill_counter = 512; }
+    if( fill_counter <= 0 )
+      { fill_distance_prices(); fill_counter = fill_count; }
 
     int ahead = sequence_optimizer( rep_distances, state );
     if( ahead <= 0 ) return false;
@@ -568,7 +579,8 @@ bool LZ_encoder::encode_member( const bool finish )
 
     for( int i = 0; ; )
       {
-      const int pos_state = ( matchfinder.data_position() - ahead ) & pos_state_mask;
+      const int pos_state =
+        ( matchfinder.data_position() - ahead ) & pos_state_mask;
       const int dis = trials[i].dis;
       const int len = trials[i].price;
 
@@ -584,7 +596,8 @@ bool LZ_encoder::encode_member( const bool finish )
         else
           {
           const uint8_t match_byte = matchfinder[-ahead-rep_distances[0]-1];
-          literal_encoder.encode_matched( range_encoder, prev_byte, match_byte, cur_byte );
+          literal_encoder.encode_matched( range_encoder,
+                                          prev_byte, cur_byte, match_byte );
           }
         state.set_char();
         }
@@ -630,3 +643,5 @@ bool LZ_encoder::encode_member( const bool finish )
       }
     }
   }
+
+} // end namespace Lzlib

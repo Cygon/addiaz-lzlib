@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,6 +35,8 @@
 #include "encoder.h"
 
 
+using namespace Lzlib;
+
 struct LZ_Encoder
   {
   long long partial_in_size;
@@ -58,15 +60,6 @@ struct LZ_Encoder
     fatal( false )
     {}
   };
-
-
-bool verify_encoder( LZ_Encoder * const encoder )
-  {
-  if( !encoder ) return false;
-  if( !encoder->matchfinder || !encoder->lz_encoder )
-    { encoder->lz_errno = LZ_bad_argument; return false; }
-  return true;
-  }
 
 
 struct LZ_Decoder
@@ -95,6 +88,17 @@ struct LZ_Decoder
   };
 
 
+namespace Lzlib {
+
+bool verify_encoder( LZ_Encoder * const encoder )
+  {
+  if( !encoder ) return false;
+  if( !encoder->matchfinder || !encoder->lz_encoder )
+    { encoder->lz_errno = LZ_bad_argument; return false; }
+  return true;
+  }
+
+
 bool verify_decoder( struct LZ_Decoder * const decoder )
   {
   if( !decoder ) return false;
@@ -102,6 +106,8 @@ bool verify_decoder( struct LZ_Decoder * const decoder )
     { decoder->lz_errno = LZ_bad_argument; return false; }
   return true;
   }
+
+} // end namespace Lzlib
 
 
 const char * LZ_version() { return LZ_version_string; }
@@ -387,7 +393,7 @@ int LZ_decompress_read( struct LZ_Decoder * const decoder,
   if( d.seeking ) return 0;
   if( d.lz_decoder && d.lz_decoder->member_finished() )
     {
-    d.partial_in_size += d.lz_decoder->member_position();
+    d.partial_in_size += d.rdec->member_position();
     d.partial_out_size += d.lz_decoder->data_position();
     delete d.lz_decoder;
     d.lz_decoder = 0;
@@ -511,7 +517,7 @@ long long LZ_decompress_member_position( struct LZ_Decoder * const decoder )
   {
   if( !verify_decoder( decoder ) ) return -1;
   if( decoder->lz_decoder )
-    return decoder->lz_decoder->member_position();
+    return decoder->rdec->member_position();
   else return 0;
   }
 
@@ -520,7 +526,7 @@ long long LZ_decompress_total_in_size( struct LZ_Decoder * const decoder )
   {
   if( !verify_decoder( decoder ) ) return -1;
   if( decoder->lz_decoder )
-    return decoder->partial_in_size + decoder->lz_decoder->member_position();
+    return decoder->partial_in_size + decoder->rdec->member_position();
   return decoder->partial_in_size;
   }
 

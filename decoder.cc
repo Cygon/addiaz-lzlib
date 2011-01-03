@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -38,7 +38,9 @@
 #include "decoder.h"
 
 
-const CRC32 Lzlib_namespace::crc32;
+namespace Lzlib {
+
+const CRC32 crc32;
 
 // Seeks a member header and updates `get'.
 // Returns true if it finds a valid header.
@@ -98,7 +100,11 @@ bool LZ_decoder::verify_trailer()
     {
     if( !range_decoder.finished() )
       trailer.data[i] = range_decoder.get_byte();
-    else { error = true; for( ; i < trailer_size; ++i ) trailer.data[i] = 0; }
+    else
+      {
+      error = true;
+      for( ; i < trailer_size; ++i ) trailer.data[i] = 0;
+      }
     }
   if( member_version == 0 ) trailer.member_size( member_size );
   if( !range_decoder.code_is_zero() ) error = true;
@@ -132,7 +138,7 @@ int LZ_decoder::decode_member()
     const int pos_state = data_position() & pos_state_mask;
     if( range_decoder.decode_bit( bm_match[state()][pos_state] ) == 0 )
       {
-      const uint8_t prev_byte = get_byte( 0 );
+      const uint8_t prev_byte = get_prev_byte();
       if( state.is_char() )
         put_byte( literal_decoder.decode( range_decoder, prev_byte ) );
       else
@@ -146,12 +152,7 @@ int LZ_decoder::decode_member()
       if( range_decoder.decode_bit( bm_rep[state()] ) == 1 )
         {
         len = 0;
-        if( range_decoder.decode_bit( bm_rep0[state()] ) == 0 )
-          {
-          if( range_decoder.decode_bit( bm_len[state()][pos_state] ) == 0 )
-            { len = 1; state.set_short_rep(); }
-          }
-        else
+        if( range_decoder.decode_bit( bm_rep0[state()] ) == 1 )
           {
           unsigned int distance;
           if( range_decoder.decode_bit( bm_rep1[state()] ) == 0 )
@@ -166,15 +167,20 @@ int LZ_decoder::decode_member()
           rep1 = rep0;
           rep0 = distance;
           }
+        else
+          {
+          if( range_decoder.decode_bit( bm_len[state()][pos_state] ) == 0 )
+            { state.set_short_rep(); len = 1; }
+          }
         if( len == 0 )
           {
-          len = min_match_len + rep_match_len_decoder.decode( range_decoder, pos_state );
           state.set_rep();
+          len = min_match_len + rep_match_len_decoder.decode( range_decoder, pos_state );
           }
         }
       else
         {
-        unsigned int rep0_saved = rep0;
+        const unsigned int rep0_saved = rep0;
         len = min_match_len + len_decoder.decode( range_decoder, pos_state );
         const int dis_slot = range_decoder.decode_tree( bm_dis_slot[get_dis_state(len)], dis_slot_bits );
         if( dis_slot < start_dis_model ) rep0 = dis_slot;
@@ -207,11 +213,13 @@ int LZ_decoder::decode_member()
                 }
               return 4;
               }
-            if( rep0 >= (unsigned int)dictionary_size ) return 1;
             }
           }
         rep3 = rep2; rep2 = rep1; rep1 = rep0_saved;
         state.set_match();
+        if( rep0 >= (unsigned int)dictionary_size ||
+            ( rep0 >= (unsigned int)put && !partial_data_pos ) )
+          return 1;
         }
       copy_block( rep0, len );
       }
@@ -277,3 +285,5 @@ int Circular_buffer::write_data( const uint8_t * const in_buffer, const int in_s
     }
   return size;
   }
+
+} // end namespace Lzlib

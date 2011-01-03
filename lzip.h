@@ -1,5 +1,5 @@
 /*  Lzlib - A compression library for lzip files
-    Copyright (C) 2009, 2010 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@
     Public License.
 */
 
+namespace Lzlib {
+
 class State
   {
   unsigned char st;
@@ -37,56 +39,64 @@ public:
 
   void set_char() throw()
     {
-    static const unsigned char next[states] = {0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5};
+    static const unsigned char next[states] =
+      {0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5};
     st = next[st];
     }
+
   void set_match() throw()
     {
-    static const unsigned char next[states] = {7, 7, 7, 7, 7, 7, 7, 10, 10, 10, 10, 10};
+    static const unsigned char next[states] =
+      {7, 7, 7, 7, 7, 7, 7, 10, 10, 10, 10, 10};
     st = next[st];
     }
+
   void set_rep() throw()
     {
-    static const unsigned char next[states] = {8, 8, 8, 8, 8, 8, 8, 11, 11, 11, 11, 11};
+    static const unsigned char next[states] =
+      {8, 8, 8, 8, 8, 8, 8, 11, 11, 11, 11, 11};
     st = next[st];
     }
+
   void set_short_rep() throw()
     {
-    static const unsigned char next[states] = {9, 9, 9, 9, 9, 9, 9, 11, 11, 11, 11, 11};
+    static const unsigned char next[states] =
+      {9, 9, 9, 9, 9, 9, 9, 11, 11, 11, 11, 11};
     st = next[st];
     }
   };
 
 
-const int min_dictionary_bits = 12;
-const int min_dictionary_size = 1 << min_dictionary_bits;
-const int max_dictionary_bits = 29;
-const int max_dictionary_size = 1 << max_dictionary_bits;
-const int literal_context_bits = 3;
-const int pos_state_bits = 2;
-const int pos_states = 1 << pos_state_bits;
-const int pos_state_mask = pos_states - 1;
+enum {
+  min_dictionary_bits = 12,
+  min_dictionary_size = 1 << min_dictionary_bits,
+  max_dictionary_bits = 29,
+  max_dictionary_size = 1 << max_dictionary_bits,
+  literal_context_bits = 3,
+  pos_state_bits = 2,
+  pos_states = 1 << pos_state_bits,
+  pos_state_mask = pos_states - 1,
 
-const int dis_slot_bits = 6;
-const int start_dis_model = 4;
-const int end_dis_model = 14;
-const int modeled_distances = 1 << (end_dis_model / 2);
-const int dis_align_bits = 4;
-const int dis_align_size = 1 << dis_align_bits;
+  dis_slot_bits = 6,
+  start_dis_model = 4,
+  end_dis_model = 14,
+  modeled_distances = 1 << (end_dis_model / 2),
+  dis_align_bits = 4,
+  dis_align_size = 1 << dis_align_bits,
 
-const int len_low_bits = 3;
-const int len_mid_bits = 3;
-const int len_high_bits = 8;
-const int len_low_symbols = 1 << len_low_bits;
-const int len_mid_symbols = 1 << len_mid_bits;
-const int len_high_symbols = 1 << len_high_bits;
-const int max_len_symbols = len_low_symbols + len_mid_symbols + len_high_symbols;
+  len_low_bits = 3,
+  len_mid_bits = 3,
+  len_high_bits = 8,
+  len_low_symbols = 1 << len_low_bits,
+  len_mid_symbols = 1 << len_mid_bits,
+  len_high_symbols = 1 << len_high_bits,
+  max_len_symbols = len_low_symbols + len_mid_symbols + len_high_symbols,
 
-const int min_match_len = 2;		// must be 2
-const int max_match_len = min_match_len + max_len_symbols - 1;	// 273
-const int min_match_len_limit = 5;
+  min_match_len = 2,		// must be 2
+  max_match_len = min_match_len + max_len_symbols - 1,	// 273
+  min_match_len_limit = 5,
 
-const int max_dis_states = 4;
+  max_dis_states = 4 };
 
 inline int get_dis_state( int len ) throw()
   {
@@ -96,9 +106,9 @@ inline int get_dis_state( int len ) throw()
   }
 
 
-const int bit_model_move_bits = 5;
-const int bit_model_total_bits = 11;
-const int bit_model_total = 1 << bit_model_total_bits;
+enum { bit_model_move_bits = 5,
+       bit_model_total_bits = 11,
+       bit_model_total = 1 << bit_model_total_bits };
 
 struct Bit_model
   {
@@ -133,9 +143,16 @@ public:
     }
   };
 
-namespace Lzlib_namespace { extern const CRC32 crc32; }
-using Lzlib_namespace::crc32;
+extern const CRC32 crc32;
 
+
+inline int real_bits( const int value ) throw()
+  {
+  int bits = 0;
+  for( int i = 1, mask = 1; mask > 0; ++i, mask <<= 1 )
+    if( value & mask ) bits = i;
+  return bits;
+  }
 
 const uint8_t magic_string[4] = { 'L', 'Z', 'I', 'P' };
 
@@ -160,14 +177,6 @@ struct File_header
     return ( verify_magic() && verify_version() &&
              dictionary_size() >= min_dictionary_size &&
              dictionary_size() <= max_dictionary_size );
-    }
-
-  static int real_bits( const int value ) throw()
-    {
-    int bits = 0;
-    for( int i = 1, mask = 1; mask > 0; ++i, mask <<= 1 )
-      if( value & mask ) bits = i;
-    return bits;
     }
 
   int dictionary_size() const throw()
@@ -284,3 +293,5 @@ public:
   int read_data( uint8_t * const out_buffer, const int out_size ) throw();
   int write_data( const uint8_t * const in_buffer, const int in_size ) throw();
   };
+
+} // end namespace Lzlib
