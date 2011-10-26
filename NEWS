@@ -1,16 +1,10 @@
-Changes in version 1.1:
+Changes in version 1.2:
 
-Compression time has been reduced by 2%.
+For large values of "--match-length", compression ratio has been
+slightly increased and compression time has been reduced by up to 6%.
 
-All declarations not belonging to the API have been encapsulated in the
-namespace "Lzlib".
+The option "-F, --recompress", which forces recompression of files whose
+name already has the ".lz" or ".tlz" suffix, has been added to minilzip.
 
-New tests have been added to the testsuite.
-
-Match length limits set by options -1 to -9 of minilzip have been
-changed to match those of lzip 1.11.
-
-Minilzip now sets stdin and stdout in binary mode on OS2.
-
-The file bbexample.cc, containing example functions for buffer-to-buffer
-compression/decompression, has been added.
+"make install" no more tries to run "/sbin/ldconfig" on systems lacking
+it.

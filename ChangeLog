@@ -1,3 +1,17 @@
+2011-10-25  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 1.2 released.
+	* encoder.h (Lee_update_prices): Update high length symbol prices
+	  independently of the value of `pos_state'. This gives better
+	  compression for large values of `--match-length' without being
+	  slower.
+	* encoder.h encoder.cc: Optimize pair price calculations. This
+	  reduces compression time for large values of `--match-length'
+	  by up to 6%.
+	* main.cc: Added new option `-F, --recompress'.
+	* Makefile.in: `make install' no more tries to run
+	  `/sbin/ldconfig' on systems lacking it.
+
 2011-01-03  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 1.1 released.

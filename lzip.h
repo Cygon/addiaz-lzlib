@@ -40,28 +40,28 @@ public:
   void set_char() throw()
     {
     static const unsigned char next[states] =
-      {0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5};
+      { 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 4, 5 };
     st = next[st];
     }
 
   void set_match() throw()
     {
     static const unsigned char next[states] =
-      {7, 7, 7, 7, 7, 7, 7, 10, 10, 10, 10, 10};
+      { 7, 7, 7, 7, 7, 7, 7, 10, 10, 10, 10, 10 };
     st = next[st];
     }
 
   void set_rep() throw()
     {
     static const unsigned char next[states] =
-      {8, 8, 8, 8, 8, 8, 8, 11, 11, 11, 11, 11};
+      { 8, 8, 8, 8, 8, 8, 8, 11, 11, 11, 11, 11 };
     st = next[st];
     }
 
   void set_short_rep() throw()
     {
     static const unsigned char next[states] =
-      {9, 9, 9, 9, 9, 9, 9, 11, 11, 11, 11, 11};
+      { 9, 9, 9, 9, 9, 9, 9, 11, 11, 11, 11, 11 };
     st = next[st];
     }
   };

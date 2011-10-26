@@ -5,8 +5,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 3 January 2011
-@set VERSION 1.1
+@set UPDATED 25 October 2011
+@set VERSION 1.2
 
 @dircategory Data Compression
 @direntry
@@ -204,7 +204,8 @@ should be freed with @samp{LZ_compress_close} to avoid memory leaks.
 @var{dictionary_size} sets the dictionary size to be used, in bytes.
 Valid values range from 4KiB to 512MiB. Note that dictionary sizes are
 quantized. If the specified size does not match one of the valid sizes,
-it will be rounded upwards.
+it will be rounded upwards by adding up to (@var{dictionary_size} / 16)
+to it.
 
 @var{match_len_limit} sets the match length limit in bytes. Valid values
 range from 5 to 273. Larger values usually give better compression
@@ -285,7 +286,7 @@ accept a @var{size} up to the returned number of bytes.
 
 
 @deftypefun {enum LZ_Errno} LZ_compress_errno ( struct LZ_Encoder * const @var{encoder} )
-Returns the current error code for @var{encoder} (@pxref{Error Codes})
+Returns the current error code for @var{encoder} (@pxref{Error Codes}).
 @end deftypefun
 
 
@@ -417,7 +418,7 @@ will accept a @var{size} up to the returned number of bytes.
 
 
 @deftypefun {enum LZ_Errno} LZ_decompress_errno ( struct LZ_Decoder * const @var{decoder} )
-Returns the current error code for @var{decoder} (@pxref{Error Codes})
+Returns the current error code for @var{decoder} (@pxref{Error Codes}).
 @end deftypefun
 
 
@@ -585,12 +586,12 @@ All multibyte values are stored in little endian order.
 
 @table @samp
 @item ID string
-A four byte string, identifying the member type, with the value "LZIP".
+A four byte string, identifying the lzip format, with the value "LZIP".
 
 @item VN (version number, 1 byte)
 Just in case something needs to be modified in the future. Valid values
-are 0 and 1. Version 0 files have only one member and lack @samp{Member
-size}.
+are 0 and 1. Version 0 files are deprecated. They can contain only one
+member and lack the @samp{Member size} field.
 
 @item DS (coded dictionary size, 1 byte)
 Bits 4-0 contain the base 2 logarithm of the base dictionary size.@*

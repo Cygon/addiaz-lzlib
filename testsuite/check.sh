@@ -45,6 +45,13 @@ printf .
 cmp in copy || fail=1
 printf .
 
+"${LZIP}" -cf "${testdir}"/test_v1.lz > out 2>/dev/null
+if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+"${LZIP}" -cF "${testdir}"/test_v1.lz > out || fail=1
+"${LZIP}" -cd out | "${LZIP}" -d > copy || fail=1
+cmp in copy || fail=1
+printf .
+
 for i in s4Ki 0 1 2 3 4 5 6 7 8s16 9s16 ; do
 	"${LZIP}" -k -$i in || fail=1
 	mv -f in.lz copy.lz || fail=1
@@ -77,7 +84,7 @@ for i in s4Ki 0 1 2 3 4 5 6 7 8s16 9s16 ; do
 done
 
 "${LZIP}" -$i < in > anyothername || fail=1
-"${LZIP}" -dq anyothername || fail=1
+"${LZIP}" -d anyothername || fail=1
 cmp in anyothername.out || fail=1
 printf .
 

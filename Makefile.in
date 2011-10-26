@@ -5,7 +5,7 @@ INSTALL = install
 INSTALL_PROGRAM = $(INSTALL) -p -m 755
 INSTALL_DATA = $(INSTALL) -p -m 644
 INSTALL_DIR = $(INSTALL) -d -m 755
-LDCONFIG = ldconfig
+LDCONFIG = /sbin/ldconfig
 SHELL = /bin/sh
 
 lib_objs    = decoder.o encoder.o lzlib.o
@@ -101,7 +101,7 @@ install : all install-info
 	  else run_ldconfig=yes ; \
 	  fi ; \
 	  cd "$(DESTDIR)$(libdir)" && ln -s lib$(libname).so.$(pkgversion) lib$(libname).so.$(soversion) ; \
-	  if [ $${run_ldconfig} = yes ] ; then $(LDCONFIG) "$(DESTDIR)$(libdir)" ; fi ; \
+	  if [ $${run_ldconfig} = yes ] && [ -x "$(LDCONFIG)" ] ; then "$(LDCONFIG)" -n "$(DESTDIR)$(libdir)" ; fi ; \
 	fi
 
 install-info :

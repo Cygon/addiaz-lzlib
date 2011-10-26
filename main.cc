@@ -18,7 +18,7 @@
     Return values: 0 for a normal exit, 1 for environmental problems
     (file not found, invalid flags, I/O errors, etc), 2 to indicate a
     corrupt or invalid input file, 3 for an internal consistency error
-    (eg, bug) which caused lzip to panic.
+    (eg, bug) which caused minilzip to panic.
 */
 
 #define _FILE_OFFSET_BITS 64
@@ -138,6 +138,7 @@ void show_help() throw()
   std::printf( "  -c, --stdout               send output to standard output\n" );
   std::printf( "  -d, --decompress           decompress\n" );
   std::printf( "  -f, --force                overwrite existing output files\n" );
+  std::printf( "  -F, --recompress           force recompression of compressed files\n" );
   std::printf( "  -k, --keep                 keep (don't delete) input files\n" );
   std::printf( "  -m, --match-length=<n>     set match length limit in bytes [36]\n" );
   std::printf( "  -o, --output=<file>        if reading stdin, place the output into <file>\n" );
@@ -184,7 +185,7 @@ const char * format_num( long long num ) throw()
   }
 
 
-long long getnum( const char * const ptr, const int bs = 0,
+long long getnum( const char * const ptr,
                   const long long llimit = LLONG_MIN + 1,
                   const long long ulimit = LLONG_MAX ) throw()
   {
@@ -205,9 +206,6 @@ long long getnum( const char * const ptr, const int bs = 0,
     switch( tail[0] )
       {
       case ' ': break;
-      case 'b': if( bs > 0 ) { factor = bs; exponent = 1; }
-                else bad_multiplier = true;
-                break;
       case 'Y': exponent = 8; break;
       case 'Z': exponent = 7; break;
       case 'E': exponent = 6; break;
@@ -249,7 +247,7 @@ int get_dict_size( const char * const arg ) throw()
   if( bits >= LZ_min_dictionary_bits() &&
       bits <= LZ_max_dictionary_bits() && *tail == 0 )
     return ( 1 << bits );
-  return getnum( arg, 0, LZ_min_dictionary_size(), LZ_max_dictionary_size() );
+  return getnum( arg, LZ_min_dictionary_size(), LZ_max_dictionary_size() );
   }
 
 
@@ -268,10 +266,10 @@ int extension_index( const std::string & name ) throw()
 
 int open_instream( const std::string & name, struct stat * const in_statsp,
                    const Mode program_mode, const int eindex,
-                   const bool force, const bool to_stdout ) throw()
+                   const bool recompress, const bool to_stdout ) throw()
   {
   int infd = -1;
-  if( program_mode == m_compress && !force && eindex >= 0 )
+  if( program_mode == m_compress && !recompress && eindex >= 0 )
     {
     if( verbosity >= 0 )
       std::fprintf( stderr, "%s: Input file `%s' already has `%s' suffix.\n",
@@ -331,7 +329,7 @@ void set_d_outname( const std::string & name, const int i ) throw()
       }
     }
   output_filename = name; output_filename += ".out";
-  if( verbosity >= 0 )
+  if( verbosity >= 1 )
     std::fprintf( stderr, "%s: Can't guess original name for `%s' -- using `%s'.\n",
                   program_name, name.c_str(), output_filename.c_str() );
   }
@@ -382,7 +380,7 @@ void cleanup_and_fail( const int retval ) throw()
       std::fprintf( stderr, "%s: Deleting output file `%s', if it exists.\n",
                     program_name, output_filename.c_str() );
     if( outfd >= 0 ) { close( outfd ); outfd = -1; }
-    if( std::remove( output_filename.c_str() ) != 0 )
+    if( std::remove( output_filename.c_str() ) != 0 && errno != ENOENT )
       show_error( "WARNING: deletion of output file (apparently) failed." );
     }
   std::exit( retval );
@@ -589,12 +587,12 @@ int do_decompress( LZ_Decoder * const decoder, const int infd,
           std::fprintf( stderr, "version %d, dictionary size %7sB.  ",
                         LZ_decompress_member_version( decoder ),
                         format_num( LZ_decompress_dictionary_size( decoder ) ) );
-        if( verbosity >= 4 && data_position > 0 && member_size > 0 )
+        if( verbosity >= 3 && data_position > 0 && member_size > 0 )
           std::fprintf( stderr, "%6.3f:1, %6.3f bits/byte, %5.2f%% saved.  ",
                         (double)data_position / member_size,
                         ( 8.0 * member_size ) / data_position,
                         100.0 * ( 1.0 - ( (double)member_size / data_position ) ) );
-        if( verbosity >= 3 )
+        if( verbosity >= 4 )
           std::fprintf( stderr, "data CRC %08X, data size %9lld, member size %8lld.  ",
                         LZ_decompress_data_crc( decoder ),
                         data_position, member_size );
@@ -778,6 +776,7 @@ int main( const int argc, const char * const argv[] )
   Mode program_mode = m_compress;
   bool force = false;
   bool keep_input_files = false;
+  bool recompress = false;
   bool to_stdout = false;
   std::string input_filename;
   std::string default_output_filename;
@@ -807,6 +806,7 @@ int main( const int argc, const char * const argv[] )
     { 'd', "decompress",      Arg_parser::no  },
     { 'e', "extreme",         Arg_parser::no  },
     { 'f', "force",           Arg_parser::no  },
+    { 'F', "recompress",      Arg_parser::no  },
     { 'h', "help",            Arg_parser::no  },
     { 'k', "keep",            Arg_parser::no  },
     { 'm', "match-length",    Arg_parser::yes },
@@ -834,21 +834,22 @@ int main( const int argc, const char * const argv[] )
       case '0': case '1': case '2': case '3': case '4':
       case '5': case '6': case '7': case '8': case '9':
                 encoder_options = option_mapping[code-'0']; break;
-      case 'b': member_size = getnum( arg, 0, 100000, LLONG_MAX / 2 ); break;
+      case 'b': member_size = getnum( arg, 100000, LLONG_MAX / 2 ); break;
       case 'c': to_stdout = true; break;
       case 'd': program_mode = m_decompress; break;
       case 'e': break;				// ignored by now
       case 'f': force = true; break;
+      case 'F': recompress = true; break;
       case 'h': show_help(); return 0;
       case 'k': keep_input_files = true; break;
       case 'm': encoder_options.match_len_limit =
-                  getnum( arg, 0, LZ_min_match_len_limit(),
-                                  LZ_max_match_len_limit() ); break;
+                  getnum( arg, LZ_min_match_len_limit(),
+                               LZ_max_match_len_limit() ); break;
       case 'o': default_output_filename = arg; break;
       case 'q': verbosity = -1; break;
       case 's': encoder_options.dictionary_size = get_dict_size( arg );
                 break;
-      case 'S': volume_size = getnum( arg, 0, 100000, LLONG_MAX / 2 ); break;
+      case 'S': volume_size = getnum( arg, 100000, LLONG_MAX / 2 ); break;
       case 't': program_mode = m_test; break;
       case 'v': if( verbosity < 4 ) ++verbosity; break;
       case 'V': show_version(); return 0;
@@ -911,7 +912,7 @@ int main( const int argc, const char * const argv[] )
       input_filename = filenames[i];
       const int eindex = extension_index( input_filename );
       infd = open_instream( input_filename, &in_stats, program_mode,
-                            eindex, force, to_stdout );
+                            eindex, recompress, to_stdout );
       if( infd < 0 ) { if( retval < 1 ) retval = 1; continue; }
       if( program_mode != m_test )
         {
