@@ -3,17 +3,23 @@ Description
 Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
-lzip format.
+lzip format. Lzlib is written in C.
 
 The functions and variables forming the interface of the compression
 library are declared in the file lzlib.h. Usage examples of the library
-are given in the files main.cc and bbexample.cc from the source
+are given in the files main.c and bbexample.c from the source
 distribution.
 
 Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data has been processed by the
 library. This interface is safer and less error prone than the
 traditional zlib interface.
+
+Compression/decompression is done when the read function is called. This
+means the value returned by the position functions will not be updated
+until some data is read, even if you write a lot of data. If you want
+the data to be compressed in advance, just call the read function with a
+size equal to 0.
 
 Lzlib will correctly decompress a data stream which is the concatenation
 of two or more compressed data streams. The result is the concatenation
@@ -30,7 +36,7 @@ Igor Pavlov. For a description of the LZMA algorithm, see the Lzip
 manual.
 
 
-Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
+Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
 
 This file is free documentation: you have unlimited permission to copy,
 distribute and modify it.

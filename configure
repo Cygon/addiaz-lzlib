@@ -1,6 +1,6 @@
 #! /bin/sh
 # configure script for Lzlib - A compression library for lzip files
-# Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
+# Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
 #
 # This configure script is free software: you have unlimited permission
 # to copy, distribute and modify it.
@@ -8,7 +8,7 @@
 args=
 no_create=
 pkgname=lzlib
-pkgversion=1.2
+pkgversion=1.3
 soversion=1
 progname=minilzip
 progname_shared=
@@ -22,15 +22,14 @@ srcdir=
 prefix=/usr/local
 exec_prefix='$(prefix)'
 bindir='$(exec_prefix)/bin'
-datadir='$(prefix)/share'
-includedir='${prefix}/include'
-infodir='$(datadir)/info'
-libdir='${exec_prefix}/lib'
-mandir='$(datadir)/man'
-sysconfdir='$(prefix)/etc'
-CXX=
+datarootdir='$(prefix)/share'
+includedir='$(prefix)/include'
+infodir='$(datarootdir)/info'
+libdir='$(exec_prefix)/lib'
+mandir='$(datarootdir)/man'
+CC=
 CPPFLAGS=
-CXXFLAGS='-Wall -W -O2'
+CFLAGS='-Wall -W -O2'
 LDFLAGS=
 
 # Loop over all args
@@ -45,12 +44,12 @@ while [ -n "$1" ] ; do
 
 	# Split out the argument for options that take them
 	case ${option} in
-	*=*) optarg=`echo ${option} | sed -e 's,^[^=]*=,,'` ;;
+	*=*) optarg=`echo ${option} | sed -e 's,^[^=]*=,,;s,/$,,'` ;;
 	esac
 
 	# Process the options
 	case ${option} in
-	--help | --he* | -h)
+	--help | -h)
 		echo "Usage: configure [options]"
 		echo
 		echo "Options: [defaults in brackets]"
@@ -60,51 +59,37 @@ while [ -n "$1" ] ; do
 		echo "  --prefix=DIR          install into DIR [${prefix}]"
 		echo "  --exec-prefix=DIR     base directory for arch-dependent files [${exec_prefix}]"
 		echo "  --bindir=DIR          user executables directory [${bindir}]"
-		echo "  --datadir=DIR         base directory for doc and data [${datadir}]"
+		echo "  --datarootdir=DIR     base directory for doc and data [${datarootdir}]"
 		echo "  --includedir=DIR      C header files [${includedir}]"
 		echo "  --infodir=DIR         info files directory [${infodir}]"
 		echo "  --libdir=DIR          object code libraries [${libdir}]"
 		echo "  --mandir=DIR          man pages directory [${mandir}]"
-		echo "  --sysconfdir=DIR      read-only single-machine data directory [${sysconfdir}]"
 		echo "  --enable-shared       build also a shared library [disable]"
-		echo "  CXX=COMPILER          C++ compiler to use [g++]"
+		echo "  CC=COMPILER           C compiler to use [gcc]"
 		echo "  CPPFLAGS=OPTIONS      command line options for the preprocessor [${CPPFLAGS}]"
-		echo "  CXXFLAGS=OPTIONS      command line options for the C++ compiler [${CXXFLAGS}]"
+		echo "  CFLAGS=OPTIONS        command line options for the C compiler [${CFLAGS}]"
 		echo "  LDFLAGS=OPTIONS       command line options for the linker [${LDFLAGS}]"
 		echo
 		exit 0 ;;
-	--version | --ve* | -V)
+	--version | -V)
 		echo "Configure script for ${pkgname} version ${pkgversion}"
 		exit 0 ;;
-	--srcdir* | --sr*)
-		srcdir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--prefix* | --pr*)
-		prefix=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--exec-prefix* | --ex*)
-		exec_prefix=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--bindir* | --bi*)
-		bindir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--datadir* | --da*)
-		datadir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--includedir* | --inc*)
-		includedir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--infodir* | --inf*)
-		infodir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--libdir* | --li*)
-		libdir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--mandir* | --ma*)
-		mandir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--sysconfdir* | --sy*)
-		sysconfdir=`echo ${optarg} | sed -e 's,/$,,'` ;;
-	--no-create | --no-c*)
-		no_create=yes ;;
-	--enable-shared | --enable-s*)
-		progname_shared=${progname}_shared ;;
+	--srcdir=*)            srcdir=${optarg} ;;
+	--prefix=*)            prefix=${optarg} ;;
+	--exec-prefix=*)  exec_prefix=${optarg} ;;
+	--bindir=*)            bindir=${optarg} ;;
+	--datarootdir=*)  datarootdir=${optarg} ;;
+	--includedir=*)    includedir=${optarg} ;;
+	--infodir=*)          infodir=${optarg} ;;
+	--libdir=*)            libdir=${optarg} ;;
+	--mandir=*)            mandir=${optarg} ;;
+	--no-create)              no_create=yes ;;
+	--enable-shared) progname_shared=${progname}_shared ;;
 
-	CXX=*)      CXX=${optarg} ;;
+	CC=*)             CC=${optarg} ;;
 	CPPFLAGS=*) CPPFLAGS=${optarg} ;;
-	CXXFLAGS=*) CXXFLAGS=${optarg} ;;
-	LDFLAGS=*)  LDFLAGS=${optarg} ;;
+	CFLAGS=*)     CFLAGS=${optarg} ;;
+	LDFLAGS=*)   LDFLAGS=${optarg} ;;
 
 	--* | *=* | *-*-*) ;;
 	*)
@@ -135,14 +120,14 @@ fi
 # Set srcdir to . if that's what it is.
 if [ "`pwd`" = "`cd ${srcdir} ; pwd`" ] ; then srcdir=. ; fi
 
-# checking whether we are using GNU C++.
-if [ -z "${CXX}" ] ; then		# Let the user override the test.
-	if [ -x /bin/g++ ] ||
-	   [ -x /usr/bin/g++ ] ||
-	   [ -x /usr/local/bin/g++ ] ; then
-		CXX="g++"
+# checking whether we are using GNU C.
+if [ -z "${CC}" ] ; then		# Let the user override the test.
+	if [ -x /bin/gcc ] ||
+	   [ -x /usr/bin/gcc ] ||
+	   [ -x /usr/local/bin/gcc ] ; then
+		CC="gcc"
 	else
-		CXX="c++"
+		CC="cc"
 	fi
 fi
 
@@ -168,20 +153,19 @@ echo "VPATH = ${srcdir}"
 echo "prefix = ${prefix}"
 echo "exec_prefix = ${exec_prefix}"
 echo "bindir = ${bindir}"
-echo "datadir = ${datadir}"
+echo "datarootdir = ${datarootdir}"
 echo "includedir = ${includedir}"
 echo "infodir = ${infodir}"
 echo "libdir = ${libdir}"
 echo "mandir = ${mandir}"
-echo "sysconfdir = ${sysconfdir}"
-echo "CXX = ${CXX}"
+echo "CC = ${CC}"
 echo "CPPFLAGS = ${CPPFLAGS}"
-echo "CXXFLAGS = ${CXXFLAGS}"
+echo "CFLAGS = ${CFLAGS}"
 echo "LDFLAGS = ${LDFLAGS}"
 rm -f Makefile
 cat > Makefile << EOF
 # Makefile for Lzlib - A compression library for lzip files
-# Copyright (C) 2009, 2010, 2011 Antonio Diaz Diaz.
+# Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
 # This file was generated automatically by configure. Do not edit.
 #
 # This Makefile is free software: you have unlimited permission
@@ -197,15 +181,14 @@ VPATH = ${srcdir}
 prefix = ${prefix}
 exec_prefix = ${exec_prefix}
 bindir = ${bindir}
-datadir = ${datadir}
+datarootdir = ${datarootdir}
 includedir = ${includedir}
 infodir = ${infodir}
 libdir = ${libdir}
 mandir = ${mandir}
-sysconfdir = ${sysconfdir}
-CXX = ${CXX}
+CC = ${CC}
 CPPFLAGS = ${CPPFLAGS}
-CXXFLAGS = ${CXXFLAGS}
+CFLAGS = ${CFLAGS}
 LDFLAGS = ${LDFLAGS}
 EOF
 cat ${srcdir}/Makefile.in >> Makefile

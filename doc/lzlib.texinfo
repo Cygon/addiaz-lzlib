@@ -1,12 +1,13 @@
 \input texinfo @c -*-texinfo-*-
 @c %**start of header
 @setfilename lzlib.info
+@documentencoding ISO-8859-15
 @settitle Lzlib Manual
 @finalout
 @c %**end of header
 
-@set UPDATED 25 October 2011
-@set VERSION 1.2
+@set UPDATED 29 February 2012
+@set VERSION 1.3
 
 @dircategory Data Compression
 @direntry
@@ -49,7 +50,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009, 2010, 2011 Antonio Diaz Diaz.
+Copyright @copyright{} 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -62,12 +63,12 @@ to copy, distribute and modify it.
 Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
-lzip format.
+lzip format. Lzlib is written in C.
 
 The functions and variables forming the interface of the compression
 library are declared in the file @samp{lzlib.h}. Usage examples of the
-library are given in the files @samp{main.cc} and @samp{bbexample.cc}
-from the source distribution.
+library are given in the files @samp{main.c} and @samp{bbexample.c} from
+the source distribution.
 
 Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data has been processed by the
@@ -213,7 +214,7 @@ ratios but longer compression times.
 
 @var{member_size} sets the member size limit in bytes. Minimum member
 size limit is 100kB. Small member size may degrade compression ratio, so
-use it only when needed. To produce a single member data stream, give
+use it only when needed. To produce a single-member data stream, give
 @var{member_size} a value larger than the amount of data to be produced,
 for example LLONG_MAX.
 @end deftypefun
@@ -237,7 +238,7 @@ After all the produced compressed data has been read with
 
 
 @deftypefun int LZ_compress_restart_member ( struct LZ_Encoder * const @var{encoder}, const long long @var{member_size} )
-Use this function to start a new member, in a multimember data stream.
+Use this function to start a new member, in a multi-member data stream.
 Call this function only after @samp{LZ_compress_member_finished}
 indicates that the current member has been fully read (with the
 @samp{LZ_compress_read} function).
@@ -297,7 +298,7 @@ be safely called. Otherwise it returns 0.
 
 
 @deftypefun int LZ_compress_member_finished ( struct LZ_Encoder * const @var{encoder} )
-Returns 1 if the current member, in a multimember data stream, has been
+Returns 1 if the current member, in a multi-member data stream, has been
 fully read and @samp{LZ_compress_restart_member} can be safely called.
 Otherwise it returns 0.
 @end deftypefun
@@ -612,7 +613,7 @@ Size of the uncompressed original data.
 
 @item Member size (8 bytes)
 Total size of the member, including header and trailer. This facilitates
-safe recovery of undamaged members from multimember files.
+safe recovery of undamaged members from multi-member files.
 
 @end table
 
@@ -623,9 +624,13 @@ safe recovery of undamaged members from multimember files.
 
 This chapter shows the order in which the library functions should be
 called depending on what kind of data stream you want to compress or
-decompress. See the file @samp{bbexample.cc} in the source distribution
+decompress. See the file @samp{bbexample.c} in the source distribution
 for an example of how buffer-to-buffer compression/decompression can be
 implemented using lzlib.
+
+Note that lzlib's interface is symmetrical. That is, the code for normal
+compression and decompression is identical except because one calls
+LZ_compress* functions while the other calls LZ_decompress* functions.
 
 @sp 1
 @noindent
@@ -693,7 +698,7 @@ Example 4: Decompression using LZ_decompress_write_size.
 
 @sp 1
 @noindent
-Example 5: Multimember compression (@var{member_size} < total output).
+Example 5: Multi-member compression (@var{member_size} < total output).
 
 @example
  1) LZ_compress_open
@@ -711,7 +716,7 @@ Example 5: Multimember compression (@var{member_size} < total output).
 
 @sp 1
 @noindent
-Example 6: Multimember compression (user-restarted members).
+Example 6: Multi-member compression (user-restarted members).
 
 @example
  1) LZ_compress_open

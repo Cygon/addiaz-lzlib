@@ -8,9 +8,7 @@ INSTALL_DIR = $(INSTALL) -d -m 755
 LDCONFIG = /sbin/ldconfig
 SHELL = /bin/sh
 
-lib_objs    = decoder.o encoder.o lzlib.o
-sh_lib_objs = sh_decoder.o sh_encoder.o sh_lzlib.o
-objs        = arg_parser.o main.o
+objs = carg_parser.o main.o
 
 
 .PHONY : all install install-info install-man install-strip \
@@ -19,55 +17,43 @@ objs        = arg_parser.o main.o
 
 all : $(progname) $(progname_shared)
 
-lib$(libname).a: $(lib_objs)
-	$(AR) -rcs $@ $^
+lib$(libname).a : lzlib.o
+	$(AR) -rcs $@ $<
 
-lib$(libname).so.$(pkgversion) : $(sh_lib_objs)
-	$(CXX) -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $^
+lib$(libname).so.$(pkgversion) : lzlib_sh.o
+	$(CC) -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $<
 
 $(progname) : $(objs) lib$(libname).a
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $(objs) lib$(libname).a
 
 $(progname)_shared : $(objs) lib$(libname).so.$(pkgversion)
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $(objs) lib$(libname).so.$(pkgversion)
 
 $(progname)_profiled : $(objs) lib$(libname).a
-	$(CXX) $(LDFLAGS) -pg -o $@ $^
+	$(CC) $(LDFLAGS) -pg -o $@ $(objs) lib$(libname).a
 
 bbexample : bbexample.o lib$(libname).a
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ bbexample.o lib$(libname).a
 
 lzcheck : lzcheck.o lib$(libname).a
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ lzcheck.o lib$(libname).a
 
-main.o : main.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
+main.o : main.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
 
-%.o : %.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+%.o : %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
-sh_decoder.o : decoder.cc
-	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+lzlib_sh.o : lzlib.c
+	$(CC) -fpic -fPIC $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
-sh_encoder.o : encoder.cc
-	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
-
-sh_lzlib.o : lzlib.cc
-	$(CXX) -fpic -fPIC $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
-
-$(lib_objs)    : Makefile lzlib.h lzip.h
-$(sh_lib_objs) : Makefile lzlib.h lzip.h
-$(objs)        : Makefile
-arg_parser.o   : arg_parser.h
-decoder.o      : decoder.h
-encoder.o      : encoder.h
-lzlib.o        : decoder.h encoder.h
-sh_decoder.o   : decoder.h
-sh_encoder.o   : encoder.h
-sh_lzlib.o     : decoder.h encoder.h
-main.o         : arg_parser.h lzlib.h
-bbexample.o    : Makefile lzlib.h
-lzcheck.o      : Makefile lzlib.h
+$(objs)       : Makefile
+carg_parser.o : carg_parser.h
+lzlib.o       : Makefile lzlib.h clzip.h tables.c decoder.c encoder.c
+lzlib_sh.o    : Makefile lzlib.h clzip.h tables.c decoder.c encoder.c
+main.o        : carg_parser.h lzlib.h
+bbexample.o   : Makefile lzlib.h
+lzcheck.o     : Makefile lzlib.h
 
 
 doc : info man
@@ -147,14 +133,14 @@ dist : doc
 	  $(DISTNAME)/testsuite/test_sync.lz \
 	  $(DISTNAME)/testsuite/test_v[01].lz \
 	  $(DISTNAME)/*.h \
-	  $(DISTNAME)/*.cc
+	  $(DISTNAME)/*.c
 	rm -f $(DISTNAME)
 	lzip -v -9 $(DISTNAME).tar
 
 clean :
 	-rm -f $(progname) $(progname)_profiled $(objs)
-	-rm -f $(progname)_shared $(sh_lib_objs) *.so.$(pkgversion)
-	-rm -f bbexample bbexample.o lzcheck lzcheck.o $(lib_objs) *.a
+	-rm -f $(progname)_shared lzlib_sh.o *.so.$(pkgversion)
+	-rm -f bbexample bbexample.o lzcheck lzcheck.o lzlib.o *.a
 
 distclean : clean
 	-rm -f Makefile config.status *.tar *.tar.lz

@@ -1,10 +1,11 @@
-Changes in version 1.2:
+Changes in version 1.3:
 
-For large values of "--match-length", compression ratio has been
-slightly increased and compression time has been reduced by up to 6%.
+Lzlib has been translated to C from the C++ source of lzlib 1.2. This
+has been done to avoid the dependency on libstdc++, making lzlib useful
+in more environments.
 
-The option "-F, --recompress", which forces recompression of files whose
-name already has the ".lz" or ".tlz" suffix, has been added to minilzip.
+Quote characters in messages have been changed as advised by GNU Coding
+Standards.
 
-"make install" no more tries to run "/sbin/ldconfig" on systems lacking
-it.
+Configure option "--datadir" has been renamed to "--datarootdir" to
+follow GNU Standards.
