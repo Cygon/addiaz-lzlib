@@ -1,6 +1,6 @@
 #! /bin/sh
 # check script for Lzlib - A compression library for lzip files
-# Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
+# Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 #
 # This script is free software: you have unlimited permission
 # to copy, distribute and modify it.
@@ -28,27 +28,28 @@ fail=0
 
 printf "testing lzlib-%s..." "$2"
 
-"${LZIP}" -t "${testdir}"/test_v0.lz || fail=1
-printf .
-"${LZIP}" -cd "${testdir}"/test_v0.lz > copy || fail=1
-cmp in copy || fail=1
-printf .
+"${LZIP}" -cqs-1 in > /dev/null
+if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+"${LZIP}" -cqs0 in > /dev/null
+if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+"${LZIP}" -cqs4095 in > /dev/null
+if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+"${LZIP}" -cqm274 in > /dev/null
+if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
 
-"${LZIP}" -t "${testdir}"/test_v1.lz || fail=1
-printf .
-"${LZIP}" -cd "${testdir}"/test_v1.lz > copy || fail=1
+"${LZIP}" -t "${testdir}"/test.txt.lz || fail=1
+"${LZIP}" -cd "${testdir}"/test.txt.lz > copy || fail=1
 cmp in copy || fail=1
 printf .
 
 "${LZIP}" -t "${testdir}"/test_sync.lz || fail=1
-printf .
 "${LZIP}" -cd "${testdir}"/test_sync.lz > copy || fail=1
 cmp in copy || fail=1
 printf .
 
-"${LZIP}" -cfq "${testdir}"/test_v1.lz > out
+"${LZIP}" -cfq "${testdir}"/test.txt.lz > out
 if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
-"${LZIP}" -cF "${testdir}"/test_v1.lz > out || fail=1
+"${LZIP}" -cF "${testdir}"/test.txt.lz > out || fail=1
 "${LZIP}" -cd out | "${LZIP}" -d > copy || fail=1
 cmp in copy || fail=1
 printf .
@@ -87,6 +88,12 @@ done
 "${LZIP}" < in > anyothername || fail=1
 "${LZIP}" -d anyothername || fail=1
 cmp in anyothername.out || fail=1
+printf .
+
+cat in in > in2 || framework_failure
+"${LZIP}" < in2 > out2 || fail=1
+"${LZIP}" -d < out2 > copy2 || fail=1
+cmp in2 copy2 || fail=1
 printf .
 
 "${BBEXAMPLE}" in || fail=1

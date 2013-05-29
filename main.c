@@ -1,5 +1,5 @@
 /*  Minilzip - A test program for the lzlib library
-    Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 /*
-    Return values: 0 for a normal exit, 1 for environmental problems
+    Exit status: 0 for a normal exit, 1 for environmental problems
     (file not found, invalid flags, I/O errors, etc), 2 to indicate a
     corrupt or invalid input file, 3 for an internal consistency error
     (eg, bug) which caused minilzip to panic.
@@ -35,6 +35,21 @@
 #include <unistd.h>
 #include <utime.h>
 #include <sys/stat.h>
+#if defined(__MSVCRT__)
+#include <io.h>
+#define fchmod(x,y) 0
+#define fchown(x,y,z) 0
+#define strtoull strtoul
+#define SIGHUP SIGTERM
+#define S_ISSOCK(x) 0
+#define S_IRGRP 0
+#define S_IWGRP 0
+#define S_IROTH 0
+#define S_IWOTH 0
+#endif
+#if defined(__OS2__)
+#include <io.h>
+#endif
 
 #include "carg_parser.h"
 #include "lzlib.h"
@@ -43,26 +58,21 @@
 #error "Environments where CHAR_BIT != 8 are not supported."
 #endif
 
-#ifndef LLONG_MAX
-#define LLONG_MAX  0x7FFFFFFFFFFFFFFFLL
+#ifndef max
+  #define max(x,y) ((x) >= (y) ? (x) : (y))
 #endif
-#ifndef LLONG_MIN
-#define LLONG_MIN  (-LLONG_MAX - 1LL)
-#endif
-#ifndef ULLONG_MAX
-#define ULLONG_MAX 0xFFFFFFFFFFFFFFFFULL
-#endif
-
 #ifndef min
   #define min(x,y) ((x) <= (y) ? (x) : (y))
 #endif
 
-long long int llabs( long long int number );
+void cleanup_and_fail( const int retval );
+void show_error( const char * const msg, const int errcode, const bool help );
+void internal_error( const char * const msg );
 
 
 const char * const Program_name = "Minilzip";
 const char * const program_name = "minilzip";
-const char * const program_year = "2012";
+const char * const program_year = "2013";
 const char * invocation_name = 0;
 
 #ifdef O_BINARY
@@ -83,6 +93,8 @@ struct Lzma_options
   };
 
 enum Mode { m_compress, m_decompress, m_test };
+const unsigned long long max_member_size = 0x1000000000000000ULL;
+const unsigned long long max_volume_size = 0x7FFFFFFFFFFFFFFFULL;
 
 char * output_filename = 0;
 int outfd = -1;
@@ -101,31 +113,10 @@ struct Pretty_print
   bool first_post;
   };
 
-static void Pp_init( struct Pretty_print * const pp,
-                     const char * const filenames[], const int num_filenames )
-  {
-  unsigned int stdin_name_len;
-  int i;
-  pp->name = 0;
-  pp->stdin_name = "(stdin)";
-  pp->longest_name = 0;
-  pp->first_post = false;
-  stdin_name_len = strlen( pp->stdin_name );
-
-  for( i = 0; i < num_filenames; ++i )
-    {
-    const char * const s = filenames[i];
-    const int len = ( !strcmp( s, "-" ) ? stdin_name_len : strlen( s ) );
-    if( len > pp->longest_name ) pp->longest_name = len;
-    }
-  if( pp->longest_name == 0 ) pp->longest_name = stdin_name_len;
-  }
-
-
 static inline void Pp_set_name( struct Pretty_print * const pp,
                                 const char * const filename )
   {
-  if( filename && filename[0] && strcmp( filename, "-" ) )
+  if( filename && filename[0] && strcmp( filename, "-" ) != 0 )
     pp->name = filename;
   else pp->name = pp->stdin_name;
   pp->first_post = true;
@@ -185,6 +176,10 @@ static void show_help( void )
           "scale optimal for all files. If your files are large, very repetitive,\n"
           "etc, you may need to use the --match-length and --dictionary-size\n"
           "options directly to achieve optimal performance.\n"
+          "\nExit status: 0 for a normal exit, 1 for environmental problems (file\n"
+          "not found, invalid flags, I/O errors, etc), 2 to indicate a corrupt or\n"
+          "invalid input file, 3 for an internal consistency error (eg, bug) which\n"
+          "caused minilzip to panic.\n"
           "\nReport bugs to lzip-bug@nongnu.org\n"
           "Lzlib home page: http://www.nongnu.org/lzip/lzlib.html\n" );
   }
@@ -201,56 +196,33 @@ static void show_version( void )
   }
 
 
-void show_error( const char * const msg, const int errcode, const bool help )
-  {
-  if( verbosity >= 0 )
-    {
-    if( msg && msg[0] )
-      {
-      fprintf( stderr, "%s: %s", program_name, msg );
-      if( errcode > 0 ) fprintf( stderr, ": %s", strerror( errcode ) );
-      fprintf( stderr, "\n" );
-      }
-    if( help && invocation_name && invocation_name[0] )
-      fprintf( stderr, "Try '%s --help' for more information.\n",
-               invocation_name );
-    }
-  }
-
-
-void internal_error( const char * const msg )
-  {
-  if( verbosity >= 0 )
-    fprintf( stderr, "%s: internal error: %s.\n", program_name, msg );
-  exit( 3 );
-  }
-
-
-static const char * format_num( long long num )
+void show_header( struct LZ_Decoder * const decoder )
   {
   const char * const prefix[8] =
     { "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi" };
-  enum { buf_size = 16, factor = 1024 };
-  static char buf[buf_size];
-  const char *p = "";
+  enum { factor = 1024 };
+  const char * p = "";
+  const char * np = "  ";
+  unsigned num = LZ_decompress_dictionary_size( decoder ), i;
   bool exact = ( num % factor == 0 );
-  int i;
 
-  for( i = 0; i < 8 && ( llabs( num ) > 9999 ||
-                         ( exact && llabs( num ) >= factor ) ); ++i )
-    { num /= factor; if( num % factor != 0 ) exact = false; p = prefix[i]; }
-  snprintf( buf, buf_size, "%lld %s", num, p );
-  return buf;
+  for( i = 0; i < 8 && ( num > 9999 || ( exact && num >= factor ) ); ++i )
+    { num /= factor; if( num % factor != 0 ) exact = false;
+      p = prefix[i]; np = ""; }
+  if( verbosity >= 4 )
+    fprintf( stderr, "version %d, ", LZ_decompress_member_version( decoder ) );
+  fprintf( stderr, "dictionary size %s%4u %sB.  ", np, num, p );
   }
 
 
-static long long getnum( const char * const ptr,
-                         const long long llimit, const long long ulimit )
+static unsigned long long getnum( const char * const ptr,
+                                  const unsigned long long llimit,
+                                  const unsigned long long ulimit )
   {
-  long long result;
-  char *tail;
+  unsigned long long result;
+  char * tail;
   errno = 0;
-  result = strtoll( ptr, &tail, 0 );
+  result = strtoull( ptr, &tail, 0 );
   if( tail == ptr )
     {
     show_error( "Bad or missing numerical argument.", 0, true );
@@ -260,8 +232,7 @@ static long long getnum( const char * const ptr,
   if( !errno && tail[0] )
     {
     int factor = ( tail[1] == 'i' ) ? 1024 : 1000;
-    int exponent = 0;
-    int i;
+    int exponent = 0, i;
     bool bad_multiplier = false;
     switch( tail[0] )
       {
@@ -286,7 +257,7 @@ static long long getnum( const char * const ptr,
       }
     for( i = 0; i < exponent; ++i )
       {
-      if( LLONG_MAX / factor >= llabs( result ) ) result *= factor;
+      if( ulimit / factor >= result ) result *= factor;
       else { errno = ERANGE; break; }
       }
     }
@@ -302,12 +273,26 @@ static long long getnum( const char * const ptr,
 
 static int get_dict_size( const char * const arg )
   {
-  char *tail;
+  char * tail;
   int bits = strtol( arg, &tail, 0 );
   if( bits >= LZ_min_dictionary_bits() &&
       bits <= LZ_max_dictionary_bits() && *tail == 0 )
     return ( 1 << bits );
   return getnum( arg, LZ_min_dictionary_size(), LZ_max_dictionary_size() );
+  }
+
+
+static int extension_index( const char * const name )
+  {
+  int i;
+  for( i = 0; known_extensions[i].from; ++i )
+    {
+    const char * const ext = known_extensions[i].from;
+    if( strlen( name ) > strlen( ext ) &&
+        strncmp( name + strlen( name ) - strlen( ext ), ext, strlen( ext ) ) == 0 )
+      return i;
+    }
+  return -1;
   }
 
 
@@ -354,22 +339,6 @@ static int open_instream( const char * const name, struct stat * const in_statsp
   }
 
 
-void cleanup_and_fail( const int retval )
-  {
-  if( delete_output_on_interrupt )
-    {
-    delete_output_on_interrupt = false;
-    if( verbosity >= 0 )
-      fprintf( stderr, "%s: Deleting output file '%s', if it exists.\n",
-               program_name, output_filename );
-    if( outfd >= 0 ) { close( outfd ); outfd = -1; }
-    if( remove( output_filename ) != 0 && errno != ENOENT )
-      show_error( "WARNING: deletion of output file (apparently) failed.", 0, false );
-    }
-  exit( retval );
-  }
-
-
 /* assure at least a minimum size for buffer 'buf' */
 static void * resize_buffer( void * buf, const int min_size )
   {
@@ -391,20 +360,6 @@ static void set_c_outname( const char * const name, const bool multifile )
   strcpy( output_filename, name );
   if( multifile ) strcat( output_filename, "00001" );
   strcat( output_filename, known_extensions[0].from );
-  }
-
-
-static int extension_index( const char * const name )
-  {
-  int i;
-  for( i = 0; known_extensions[i].from; ++i )
-    {
-    const char * const ext = known_extensions[i].from;
-    if( strlen( name ) > strlen( ext ) &&
-        strncmp( name + strlen( name ) - strlen( ext ), ext, strlen( ext ) ) == 0 )
-      return i;
-    }
-  return -1;
   }
 
 
@@ -468,6 +423,22 @@ static bool check_tty( const int infd, const enum Mode program_mode )
   }
 
 
+void cleanup_and_fail( const int retval )
+  {
+  if( delete_output_on_interrupt )
+    {
+    delete_output_on_interrupt = false;
+    if( verbosity >= 0 )
+      fprintf( stderr, "%s: Deleting output file '%s', if it exists.\n",
+               program_name, output_filename );
+    if( outfd >= 0 ) { close( outfd ); outfd = -1; }
+    if( remove( output_filename ) != 0 && errno != ENOENT )
+      show_error( "WARNING: deletion of output file (apparently) failed.", 0, false );
+    }
+  exit( retval );
+  }
+
+
      /* Set permissions, owner and times. */
 static void close_and_set_permissions( const struct stat * const in_statsp )
   {
@@ -503,13 +474,13 @@ int readblock( const int fd, uint8_t * const buf, const int size )
   errno = 0;
   while( rest > 0 )
     {
-    errno = 0;
     const int n = read( fd, buf + size - rest, rest );
     if( n > 0 ) rest -= n;
-    else if( n == 0 ) break;
+    else if( n == 0 ) break;				/* EOF */
     else if( errno != EINTR && errno != EAGAIN ) break;
+    errno = 0;
     }
-  return ( rest > 0 ) ? size - rest : size;
+  return size - rest;
   }
 
 
@@ -522,18 +493,18 @@ int writeblock( const int fd, const uint8_t * const buf, const int size )
   errno = 0;
   while( rest > 0 )
     {
-    errno = 0;
     const int n = write( fd, buf + size - rest, rest );
     if( n > 0 ) rest -= n;
     else if( n < 0 && errno != EINTR && errno != EAGAIN ) break;
+    errno = 0;
     }
-  return ( rest > 0 ) ? size - rest : size;
+  return size - rest;
   }
 
 
 static bool next_filename( void )
   {
-  const unsigned int len = strlen( known_extensions[0].from );
+  const unsigned len = strlen( known_extensions[0].from );
   int i, j;
 
   if( strlen( output_filename ) >= len + 5 )		/* "*00001.lz" */
@@ -546,19 +517,20 @@ static bool next_filename( void )
   }
 
 
-static int do_compress( struct LZ_Encoder * const encoder, const long long member_size,
-                        const long long volume_size, const int infd,
+static int do_compress( struct LZ_Encoder * const encoder,
+                        const unsigned long long member_size,
+                        const unsigned long long volume_size, const int infd,
                         struct Pretty_print * const pp,
                         const struct stat * const in_statsp )
   {
-  long long partial_volume_size = 0;
+  unsigned long long partial_volume_size = 0;
   enum { buffer_size = 65536 };
   uint8_t buffer[buffer_size];
 
   if( verbosity >= 1 ) Pp_show_msg( pp, 0 );
   while( true )
     {
-    int in_size = 0;
+    int in_size = 0, out_size;
     while( LZ_compress_write_size( encoder ) > 0 )
       {
       const int size = min( LZ_compress_write_size( encoder ), buffer_size );
@@ -574,7 +546,7 @@ static int do_compress( struct LZ_Encoder * const encoder, const long long membe
 /*      else LZ_compress_sync_flush( encoder ); */
       in_size += rd;
       }
-    const int out_size = LZ_compress_read( encoder, buffer, buffer_size );
+    out_size = LZ_compress_read( encoder, buffer, buffer_size );
     if( out_size < 0 )
       {
       Pp_show_msg( pp, 0 );
@@ -595,22 +567,27 @@ static int do_compress( struct LZ_Encoder * const encoder, const long long membe
     else if( in_size == 0 ) internal_error( "library error (LZ_compress_read)" );
     if( LZ_compress_member_finished( encoder ) )
       {
+      unsigned long long size;
       if( LZ_compress_finished( encoder ) == 1 ) break;
-      partial_volume_size += LZ_compress_member_position( encoder );
-      if( partial_volume_size >= volume_size - LZ_min_dictionary_size() )
+      if( volume_size > 0 )
         {
-        partial_volume_size = 0;
-        if( delete_output_on_interrupt )
+        partial_volume_size += LZ_compress_member_position( encoder );
+        if( partial_volume_size >= volume_size - LZ_min_dictionary_size() )
           {
-          close_and_set_permissions( in_statsp );
-          if( !next_filename() )
-            { Pp_show_msg( pp, "Too many volume files" ); return 1; }
-          if( !open_outstream( true ) ) return 1;
-          delete_output_on_interrupt = true;
+          partial_volume_size = 0;
+          if( delete_output_on_interrupt )
+            {
+            close_and_set_permissions( in_statsp );
+            if( !next_filename() )
+              { Pp_show_msg( pp, "Too many volume files" ); return 1; }
+            if( !open_outstream( true ) ) return 1;
+            delete_output_on_interrupt = true;
+            }
           }
+        size = min( member_size, volume_size - partial_volume_size );
         }
-      const long long size =
-        min( member_size, volume_size - partial_volume_size );
+      else
+        size = member_size;
       if( LZ_compress_restart_member( encoder, size ) < 0 )
         {
         Pp_show_msg( pp, 0 );
@@ -624,13 +601,13 @@ static int do_compress( struct LZ_Encoder * const encoder, const long long membe
 
   if( verbosity >= 1 )
     {
-    const long long in_size = LZ_compress_total_in_size( encoder );
-    const long long out_size = LZ_compress_total_out_size( encoder );
-    if( in_size <= 0 || out_size <= 0 )
+    const unsigned long long in_size = LZ_compress_total_in_size( encoder );
+    const unsigned long long out_size = LZ_compress_total_out_size( encoder );
+    if( in_size == 0 || out_size == 0 )
       fprintf( stderr, " no data compressed.\n" );
     else
       fprintf( stderr, "%6.3f:1, %6.3f bits/byte, "
-                       "%5.2f%% saved, %lld in, %lld out.\n",
+                       "%5.2f%% saved, %llu in, %llu out.\n",
                (double)in_size / out_size,
                ( 8.0 * out_size ) / in_size,
                100.0 * ( 1.0 - ( (double)out_size / in_size ) ),
@@ -640,14 +617,16 @@ static int do_compress( struct LZ_Encoder * const encoder, const long long membe
   }
 
 
-int compress( const long long member_size, const long long volume_size,
-              const struct Lzma_options * const encoder_options, const int infd,
-              struct Pretty_print * const pp, const struct stat * const in_statsp )
+int compress( const unsigned long long member_size,
+              const unsigned long long volume_size,
+              const struct Lzma_options * const encoder_options,
+              const int infd, struct Pretty_print * const pp,
+              const struct stat * const in_statsp )
   {
   struct LZ_Encoder * const encoder =
     LZ_compress_open( encoder_options->dictionary_size,
-                      encoder_options->match_len_limit,
-                      min( member_size, volume_size ) );
+                      encoder_options->match_len_limit, ( volume_size > 0 ) ?
+                      min( member_size, volume_size ) : member_size );
   int retval;
 
   if( !encoder || LZ_compress_errno( encoder ) != LZ_ok )
@@ -675,6 +654,7 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
   for( first_member = true; ; )
     {
     int in_size = min( LZ_decompress_write_size( decoder ), buffer_size );
+    int out_size = 0;
     if( in_size > 0 )
       {
       const int max_in_size = in_size;
@@ -688,7 +668,6 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
         internal_error( "library error (LZ_decompress_write)" );
       if( in_size < max_in_size ) LZ_decompress_finish( decoder );
       }
-    int out_size = 0;
     while( true )
       {
       const int rd = LZ_decompress_read( decoder, buffer, buffer_size );
@@ -706,35 +685,33 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
           }
         }
       else if( rd < 0 ) { out_size = rd; break; }
-      if( verbosity >= 1 && LZ_decompress_member_finished( decoder ) == 1 )
-        {
-        const long long data_position = LZ_decompress_data_position( decoder );
-        const long long member_size = LZ_decompress_member_position( decoder );
-        Pp_show_msg( pp, 0 );
-        if( verbosity >= 2 )
-          fprintf( stderr, "version %d, dictionary size %7sB.  ",
-                   LZ_decompress_member_version( decoder ),
-                   format_num( LZ_decompress_dictionary_size( decoder ) ) );
-        if( verbosity >= 3 && data_position > 0 && member_size > 0 )
-          fprintf( stderr, "%6.3f:1, %6.3f bits/byte, %5.2f%% saved.  ",
-                   (double)data_position / member_size,
-                   ( 8.0 * member_size ) / data_position,
-                   100.0 * ( 1.0 - ( (double)member_size / data_position ) ) );
-        if( verbosity >= 4 )
-          fprintf( stderr, "data CRC %08X, data size %9lld, member size %8lld.  ",
-                   LZ_decompress_data_crc( decoder ),
-                   data_position, member_size );
-        if( testing ) fprintf( stderr, "ok\n" );
-        else fprintf( stderr, "done\n" );
-        }
       if( LZ_decompress_member_finished( decoder ) == 1 )
-        { first_member = false; Pp_reset( pp ); }
+        {
+        if( verbosity >= 1 )
+          {
+          const unsigned long long data_position = LZ_decompress_data_position( decoder );
+          const unsigned long long member_size = LZ_decompress_member_position( decoder );
+          Pp_show_msg( pp, 0 );
+          if( verbosity >= 3 ) show_header( decoder );
+          if( verbosity >= 2 && data_position > 0 && member_size > 0 )
+            fprintf( stderr, "%6.3f:1, %6.3f bits/byte, %5.2f%% saved.  ",
+                     (double)data_position / member_size,
+                     ( 8.0 * member_size ) / data_position,
+                     100.0 * ( 1.0 - ( (double)member_size / data_position ) ) );
+          if( verbosity >= 4 )
+            fprintf( stderr, "data CRC %08X, data size %9llu, member size %8llu.  ",
+                     LZ_decompress_data_crc( decoder ),
+                     data_position, member_size );
+          fprintf( stderr, testing ? "ok\n" : "done\n" );
+          }
+        first_member = false; Pp_reset( pp );
+        }
       if( rd <= 0 ) break;
       }
-    if( out_size < 0 )
+    if( out_size < 0 || ( first_member && out_size == 0 ) )
       {
       const enum LZ_Errno lz_errno = LZ_decompress_errno( decoder );
-      if( lz_errno == LZ_header_error )
+      if( lz_errno == LZ_header_error || ( first_member && out_size == 0 ) )
         {
         if( !first_member ) break;		/* trailing garbage */
         Pp_show_msg( pp, "Error reading member header" );
@@ -745,18 +722,18 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
         Pp_show_msg( pp, "Not enough memory. Find a machine with more memory" );
         return 1;
         }
-      Pp_show_msg( pp, 0 );
-      if( lz_errno == LZ_unexpected_eof )
-        {
-        if( verbosity >= 0 )
-          fprintf( stderr, "File ends unexpectedly at pos %lld\n",
-                   LZ_decompress_total_in_size( decoder ) );
-        return 2;
-        }
       if( verbosity >= 0 )
-        fprintf( stderr, "LZ_decompress_read error: %s.\n",
-                 LZ_strerror( LZ_decompress_errno( decoder ) ) );
-      return 1;
+        {
+        Pp_show_msg( pp, 0 );
+        if( lz_errno == LZ_unexpected_eof )
+          fprintf( stderr, "File ends unexpectedly at pos %llu\n",
+                   LZ_decompress_total_in_size( decoder ) );
+        else
+          fprintf( stderr, "Decoder error at pos %llu: %s.\n",
+                   LZ_decompress_total_in_size( decoder ),
+                   LZ_strerror( LZ_decompress_errno( decoder ) ) );
+        }
+      return 2;
       }
     if( LZ_decompress_finished( decoder ) == 1 ) break;
     if( in_size == 0 && out_size == 0 )
@@ -786,7 +763,7 @@ int decompress( const int infd, struct Pretty_print * const pp,
 
 void signal_handler( int sig )
   {
-  sig = 0;			/* keep compiler happy */
+  if( sig ) {}				/* keep compiler happy */
   show_error( "Control-C or similar caught, quitting.", 0, false );
   cleanup_and_fail( 1 );
   }
@@ -797,6 +774,52 @@ static void set_signals( void )
   signal( SIGHUP, signal_handler );
   signal( SIGINT, signal_handler );
   signal( SIGTERM, signal_handler );
+  }
+
+
+static void Pp_init( struct Pretty_print * const pp,
+                     const char * const filenames[], const int num_filenames )
+  {
+  unsigned stdin_name_len;
+  int i;
+  pp->name = 0;
+  pp->stdin_name = "(stdin)";
+  pp->longest_name = 0;
+  pp->first_post = false;
+  stdin_name_len = strlen( pp->stdin_name );
+
+  for( i = 0; i < num_filenames; ++i )
+    {
+    const char * const s = filenames[i];
+    const int len = ( (strcmp( s, "-" ) == 0) ? stdin_name_len : strlen( s ) );
+    if( len > pp->longest_name ) pp->longest_name = len;
+    }
+  if( pp->longest_name == 0 ) pp->longest_name = stdin_name_len;
+  }
+
+
+void show_error( const char * const msg, const int errcode, const bool help )
+  {
+  if( verbosity >= 0 )
+    {
+    if( msg && msg[0] )
+      {
+      fprintf( stderr, "%s: %s", program_name, msg );
+      if( errcode > 0 ) fprintf( stderr, ": %s", strerror( errcode ) );
+      fprintf( stderr, "\n" );
+      }
+    if( help )
+      fprintf( stderr, "Try '%s --help' for more information.\n",
+               invocation_name );
+    }
+  }
+
+
+void internal_error( const char * const msg )
+  {
+  if( verbosity >= 0 )
+    fprintf( stderr, "%s: internal error: %s.\n", program_name, msg );
+  exit( 3 );
   }
 
 
@@ -817,8 +840,8 @@ int main( const int argc, const char * const argv[] )
     { 3 << 23, 132 },		/* -8 */
     { 1 << 25, 273 } };		/* -9 */
   struct Lzma_options encoder_options = option_mapping[6];  /* default = "-6" */
-  long long member_size = LLONG_MAX;
-  long long volume_size = LLONG_MAX;
+  unsigned long long member_size = max_member_size;
+  unsigned long long volume_size = 0;
   const char * input_filename = "";
   const char * default_output_filename = "";
   const char ** filenames = 0;
@@ -855,6 +878,7 @@ int main( const int argc, const char * const argv[] )
     { 'h', "help",            ap_no  },
     { 'k', "keep",            ap_no  },
     { 'm', "match-length",    ap_yes },
+    { 'n', "threads",         ap_yes },
     { 'o', "output",          ap_yes },
     { 'q', "quiet",           ap_no  },
     { 's', "dictionary-size", ap_yes },
@@ -867,9 +891,10 @@ int main( const int argc, const char * const argv[] )
   struct Arg_parser parser;
 
   invocation_name = argv[0];
+
   if( LZ_version()[0] != LZ_version_string[0] )
     internal_error( "bad library version" );
-  if( strcmp( PROGVERSION, LZ_version_string ) )
+  if( strcmp( PROGVERSION, LZ_version_string ) != 0 )
     internal_error( "bad library version_string" );
 
   if( !ap_init( &parser, argc, argv, options, 0 ) )
@@ -881,14 +906,14 @@ int main( const int argc, const char * const argv[] )
     {
     const int code = ap_code( &parser, argind );
     const char * const arg = ap_argument( &parser, argind );
-    if( !code ) break;				/* no more options */
+    if( !code ) break;					/* no more options */
     switch( code )
       {
       case '0':
       case '1': case '2': case '3': case '4':
       case '5': case '6': case '7': case '8': case '9':
                 encoder_options = option_mapping[code-'0']; break;
-      case 'b': member_size = getnum( arg, 100000, LLONG_MAX / 2 ); break;
+      case 'b': member_size = getnum( arg, 100000, max_member_size ); break;
       case 'c': to_stdout = true; break;
       case 'd': program_mode = m_decompress; break;
       case 'f': force = true; break;
@@ -898,11 +923,12 @@ int main( const int argc, const char * const argv[] )
       case 'm': encoder_options.match_len_limit =
                   getnum( arg, LZ_min_match_len_limit(),
                                LZ_max_match_len_limit() ); break;
+      case 'n': break;
       case 'o': default_output_filename = arg; break;
       case 'q': verbosity = -1; break;
       case 's': encoder_options.dictionary_size = get_dict_size( arg );
                 break;
-      case 'S': volume_size = getnum( arg, 100000, LLONG_MAX / 2 ); break;
+      case 'S': volume_size = getnum( arg, 100000, max_volume_size ); break;
       case 't': program_mode = m_test; break;
       case 'v': if( verbosity < 4 ) ++verbosity; break;
       case 'V': show_version(); return 0;
@@ -910,29 +936,24 @@ int main( const int argc, const char * const argv[] )
       }
     } /* end process options */
 
-#if defined(__OS2__)
-  _fsetmode( stdin, "b" );
-  _fsetmode( stdout, "b" );
+#if defined(__MSVCRT__) || defined(__OS2__)
+  setmode( STDIN_FILENO, O_BINARY );
+  setmode( STDOUT_FILENO, O_BINARY );
 #endif
 
   if( program_mode == m_test )
     outfd = -1;
 
-  for( ; argind < ap_arguments( &parser ); ++argind )
+  num_filenames = max( 1, ap_arguments( &parser ) - argind );
+  filenames = resize_buffer( filenames, num_filenames * sizeof filenames[0] );
+  filenames[0] = "-";
+
+  for( i = 0; argind + i < ap_arguments( &parser ); ++i )
     {
-    if( strcmp( ap_argument( &parser, argind ), "-" ) )
-      filenames_given = true;
-    ++num_filenames;
-    filenames = resize_buffer( filenames, num_filenames * sizeof (char *) );
-    filenames[num_filenames-1] = ap_argument( &parser, argind );
+    filenames[i] = ap_argument( &parser, argind + i );
+    if( strcmp( filenames[i], "-" ) != 0 ) filenames_given = true;
     }
 
-  if( num_filenames == 0 )
-    {
-    ++num_filenames;
-    filenames = resize_buffer( filenames, sizeof (char *) );
-    filenames[num_filenames-1] = "-";
-    }
   if( !to_stdout && program_mode != m_test &&
       ( filenames_given || default_output_filename[0] ) )
     set_signals();
@@ -947,7 +968,7 @@ int main( const int argc, const char * const argv[] )
     const struct stat * in_statsp;
     output_filename[0] = 0;
 
-    if( !filenames[i][0] || !strcmp( filenames[i], "-" ) )
+    if( !filenames[i][0] || strcmp( filenames[i], "-" ) == 0 )
       {
       input_filename = "";
       infd = STDIN_FILENO;
@@ -958,7 +979,7 @@ int main( const int argc, const char * const argv[] )
         else
           {
           if( program_mode == m_compress )
-            set_c_outname( default_output_filename, volume_size != LLONG_MAX );
+            set_c_outname( default_output_filename, volume_size > 0 );
           else
             {
             output_filename = resize_buffer( output_filename,
@@ -968,7 +989,7 @@ int main( const int argc, const char * const argv[] )
           outfd_mode = all_rw;
           if( !open_outstream( force ) )
             {
-            if( outfd == -1 && retval < 1 ) retval = 1;
+            if( retval < 1 ) retval = 1;
             close( infd ); infd = -1;
             continue;
             }
@@ -988,12 +1009,12 @@ int main( const int argc, const char * const argv[] )
         else
           {
           if( program_mode == m_compress )
-            set_c_outname( input_filename, volume_size != LLONG_MAX );
+            set_c_outname( input_filename, volume_size > 0 );
           else set_d_outname( input_filename, eindex );
           outfd_mode = usr_rw;
           if( !open_outstream( force ) )
             {
-            if( outfd == -1 && retval < 1 ) retval = 1;
+            if( retval < 1 ) retval = 1;
             close( infd ); infd = -1;
             continue;
             }

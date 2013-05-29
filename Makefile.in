@@ -11,8 +11,8 @@ SHELL = /bin/sh
 objs = carg_parser.o main.o
 
 
-.PHONY : all install install-info install-man install-strip \
-         uninstall uninstall-info uninstall-man \
+.PHONY : all install install-bin install-info install-man install-strip \
+         install-as-lzip uninstall uninstall-bin uninstall-info uninstall-man \
          doc info man check dist clean distclean
 
 all : $(progname) $(progname_shared)
@@ -47,10 +47,12 @@ main.o : main.c
 lzlib_sh.o : lzlib.c
 	$(CC) -fpic -fPIC $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
+lzdeps = lzlib.h lzip.h cbuffer.c decoder.h decoder.c encoder.h encoder.c
+
 $(objs)       : Makefile
 carg_parser.o : carg_parser.h
-lzlib.o       : Makefile lzlib.h clzip.h tables.c decoder.c encoder.c
-lzlib_sh.o    : Makefile lzlib.h clzip.h tables.c decoder.c encoder.c
+lzlib.o       : Makefile $(lzdeps)
+lzlib_sh.o    : Makefile $(lzdeps)
 main.o        : carg_parser.h lzlib.h
 bbexample.o   : Makefile lzlib.h
 lzcheck.o     : Makefile lzlib.h
@@ -75,7 +77,9 @@ Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 check : all bbexample lzcheck
 	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite $(pkgversion)
 
-install : all install-info
+install : install-bin install-info
+
+install-bin : all
 	if [ ! -d "$(DESTDIR)$(includedir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(includedir)" ; fi
 	if [ ! -d "$(DESTDIR)$(libdir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(libdir)" ; fi
 	$(INSTALL_DATA) $(VPATH)/$(libname)lib.h "$(DESTDIR)$(includedir)/$(libname)lib.h"
@@ -83,9 +87,14 @@ install : all install-info
 	if [ -n "$(progname_shared)" ] ; then \
 	  $(INSTALL_PROGRAM) ./lib$(libname).so.$(pkgversion) "$(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)" ; \
 	  if [ -e "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)" ] ; then \
-	    run_ldconfig=no ; rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)" ; \
+	    rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)" ; \
+	    run_ldconfig=no ; \
 	  else run_ldconfig=yes ; \
 	  fi ; \
+	  if [ -e "$(DESTDIR)$(libdir)/lib$(libname).so" ] ; then \
+	    rm -f "$(DESTDIR)$(libdir)/lib$(libname).so" ; \
+	  fi ; \
+	  cd "$(DESTDIR)$(libdir)" && ln -s lib$(libname).so.$(pkgversion) lib$(libname).so ; \
 	  cd "$(DESTDIR)$(libdir)" && ln -s lib$(libname).so.$(pkgversion) lib$(libname).so.$(soversion) ; \
 	  if [ $${run_ldconfig} = yes ] && [ -x "$(LDCONFIG)" ] ; then "$(LDCONFIG)" -n "$(DESTDIR)$(libdir)" ; fi ; \
 	fi
@@ -93,7 +102,7 @@ install : all install-info
 install-info :
 	if [ ! -d "$(DESTDIR)$(infodir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(infodir)" ; fi
 	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info "$(DESTDIR)$(infodir)/$(pkgname).info"
-	-install-info --info-dir="$(DESTDIR)$(infodir)" $(DESTDIR)$(infodir)/$(pkgname).info
+	-install-info --info-dir="$(DESTDIR)$(infodir)" "$(DESTDIR)$(infodir)/$(pkgname).info"
 
 install-man :
 	if [ ! -d "$(DESTDIR)$(mandir)/man1" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1" ; fi
@@ -102,9 +111,19 @@ install-man :
 install-strip : all
 	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
 
-uninstall : uninstall-info uninstall-man
+install-as-lzip : install install-man
+	if [ ! -d "$(DESTDIR)$(bindir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(bindir)" ; fi
+	$(INSTALL_PROGRAM) ./$(progname) "$(DESTDIR)$(bindir)/$(progname)"
+	-rm -f "$(DESTDIR)$(bindir)/lzip"
+	cd "$(DESTDIR)$(bindir)" && ln -s $(progname) lzip
+
+uninstall : uninstall-bin uninstall-info uninstall-man
+
+uninstall-bin :
+	-rm -f "$(DESTDIR)$(bindir)/$(progname)"
 	-rm -f "$(DESTDIR)$(includedir)/$(libname)lib.h"
 	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).a"
+	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so"
 	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(soversion)"
 	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)"
 
@@ -126,12 +145,13 @@ dist : doc
 	  $(DISTNAME)/NEWS \
 	  $(DISTNAME)/README \
 	  $(DISTNAME)/configure \
+	  $(DISTNAME)/doc/$(progname).1 \
 	  $(DISTNAME)/doc/$(pkgname).info \
 	  $(DISTNAME)/doc/$(pkgname).texinfo \
 	  $(DISTNAME)/testsuite/check.sh \
 	  $(DISTNAME)/testsuite/test.txt \
+	  $(DISTNAME)/testsuite/test.txt.lz \
 	  $(DISTNAME)/testsuite/test_sync.lz \
-	  $(DISTNAME)/testsuite/test_v[01].lz \
 	  $(DISTNAME)/*.h \
 	  $(DISTNAME)/*.c
 	rm -f $(DISTNAME)

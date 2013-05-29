@@ -6,8 +6,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 29 February 2012
-@set VERSION 1.3
+@set UPDATED 28 May 2013
+@set VERSION 1.4
 
 @dircategory Data Compression
 @direntry
@@ -50,7 +50,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
+Copyright @copyright{} 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -134,7 +134,7 @@ sizes:
 @itemize @bullet
 @item Input compression buffer. Written to by the
 @samp{LZ_compress_write} function. Its size is two times the dictionary
-size set with the @samp{LZ_compress_open} function or 128KiB, whichever
+size set with the @samp{LZ_compress_open} function or 64KiB, whichever
 is larger.
 
 @item Output compression buffer. Read from by the
@@ -187,11 +187,12 @@ Returns the largest valid match length limit [273].
 @cindex compression functions
 
 These are the functions used to compress data. In case of error, all of
-them return -1, except @samp{LZ_compress_open} whose return value must
-be verified by calling @samp{LZ_compress_errno} before using it.
+them return -1 or 0, for signed and unsigned return values respectively,
+except @samp{LZ_compress_open} whose return value must be verified by
+calling @samp{LZ_compress_errno} before using it.
 
 
-@deftypefun {struct LZ_Encoder *} LZ_compress_open ( const int @var{dictionary_size}, const int @var{match_len_limit}, const long long @var{member_size} )
+@deftypefun {struct LZ_Encoder *} LZ_compress_open ( const int @var{dictionary_size}, const int @var{match_len_limit}, const unsigned long long @var{member_size} )
 Initializes the internal stream state for compression and returns a
 pointer that can only be used as the @var{encoder} argument for the
 other LZ_compress functions, or a null pointer if the encoder could not
@@ -216,7 +217,7 @@ ratios but longer compression times.
 size limit is 100kB. Small member size may degrade compression ratio, so
 use it only when needed. To produce a single-member data stream, give
 @var{member_size} a value larger than the amount of data to be produced,
-for example LLONG_MAX.
+for example INT64_MAX.
 @end deftypefun
 
 
@@ -237,7 +238,7 @@ After all the produced compressed data has been read with
 @end deftypefun
 
 
-@deftypefun int LZ_compress_restart_member ( struct LZ_Encoder * const @var{encoder}, const long long @var{member_size} )
+@deftypefun int LZ_compress_restart_member ( struct LZ_Encoder * const @var{encoder}, const unsigned long long @var{member_size} )
 Use this function to start a new member, in a multi-member data stream.
 Call this function only after @samp{LZ_compress_member_finished}
 indicates that the current member has been fully read (with the
@@ -278,10 +279,10 @@ not an error.
 
 @deftypefun int LZ_compress_write_size ( struct LZ_Encoder * const @var{encoder} )
 The @samp{LZ_compress_write_size} function returns the maximum number of
-bytes that can be inmediately written through the @samp{LZ_compress_write}
+bytes that can be immediately written through the @samp{LZ_compress_write}
 function.
 
-It is guaranteed that an inmediate call to @samp{LZ_compress_write} will
+It is guaranteed that an immediate call to @samp{LZ_compress_write} will
 accept a @var{size} up to the returned number of bytes.
 @end deftypefun
 
@@ -304,24 +305,24 @@ Otherwise it returns 0.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_data_position ( struct LZ_Encoder * const @var{encoder} )
+@deftypefun {unsigned long long} LZ_compress_data_position ( struct LZ_Encoder * const @var{encoder} )
 Returns the number of input bytes already compressed in the current
 member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_member_position ( struct LZ_Encoder * const @var{encoder} )
+@deftypefun {unsigned long long} LZ_compress_member_position ( struct LZ_Encoder * const @var{encoder} )
 Returns the number of compressed bytes already produced, but perhaps not
 yet read, in the current member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_total_in_size ( struct LZ_Encoder * const @var{encoder} )
+@deftypefun {unsigned long long} LZ_compress_total_in_size ( struct LZ_Encoder * const @var{encoder} )
 Returns the total number of input bytes already compressed.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_compress_total_out_size ( struct LZ_Encoder * const @var{encoder} )
+@deftypefun {unsigned long long} LZ_compress_total_out_size ( struct LZ_Encoder * const @var{encoder} )
 Returns the total number of compressed bytes already produced, but
 perhaps not yet read.
 @end deftypefun
@@ -332,8 +333,9 @@ perhaps not yet read.
 @cindex decompression functions
 
 These are the functions used to decompress data. In case of error, all
-of them return -1, except @samp{LZ_decompress_open} whose return value
-must be verified by calling @samp{LZ_decompress_errno} before using it.
+of them return -1 or 0, for signed and unsigned return values
+respectively, except @samp{LZ_decompress_open} whose return value must
+be verified by calling @samp{LZ_decompress_errno} before using it.
 
 
 @deftypefun {struct LZ_Decoder *} LZ_decompress_open ( void )
@@ -410,10 +412,10 @@ not an error.
 
 @deftypefun int LZ_decompress_write_size ( struct LZ_Decoder * const @var{decoder} )
 The @samp{LZ_decompress_write_size} function returns the maximum number
-of bytes that can be inmediately written through the
+of bytes that can be immediately written through the
 @samp{LZ_decompress_write} function.
 
-It is guaranteed that an inmediate call to @samp{LZ_decompress_write}
+It is guaranteed that an immediate call to @samp{LZ_decompress_write}
 will accept a @var{size} up to the returned number of bytes.
 @end deftypefun
 
@@ -448,31 +450,31 @@ Returns the dictionary size of current member from member header.
 @end deftypefun
 
 
-@deftypefun {unsigned int} LZ_decompress_data_crc ( struct LZ_Decoder * const @var{decoder} )
+@deftypefun {unsigned} LZ_decompress_data_crc ( struct LZ_Decoder * const @var{decoder} )
 Returns the 32 bit Cyclic Redundancy Check of the data decompressed from
 the current member. The returned value is valid only when
 @samp{LZ_decompress_member_finished} returns 1.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_data_position ( struct LZ_Decoder * const @var{decoder} )
+@deftypefun {unsigned long long} LZ_decompress_data_position ( struct LZ_Decoder * const @var{decoder} )
 Returns the number of decompressed bytes already produced, but perhaps
 not yet read, in the current member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_member_position ( struct LZ_Decoder * const @var{decoder} )
+@deftypefun {unsigned long long} LZ_decompress_member_position ( struct LZ_Decoder * const @var{decoder} )
 Returns the number of input bytes already decompressed in the current
 member.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_total_in_size ( struct LZ_Decoder * const @var{decoder} )
+@deftypefun {unsigned long long} LZ_decompress_total_in_size ( struct LZ_Decoder * const @var{decoder} )
 Returns the total number of input bytes already decompressed.
 @end deftypefun
 
 
-@deftypefun {long long} LZ_decompress_total_out_size ( struct LZ_Decoder * const @var{decoder} )
+@deftypefun {unsigned long long} LZ_decompress_total_out_size ( struct LZ_Decoder * const @var{decoder} )
 Returns the total number of decompressed bytes already produced, but
 perhaps not yet read.
 @end deftypefun
@@ -555,6 +557,11 @@ The value of @var{lz_errno} normally comes from a call to
 @chapter Data Format
 @cindex data format
 
+Perfection is reached, not when there is no longer anything to add, but
+when there is no longer anything to take away.@*
+--- Antoine de Saint-Exupery
+
+@sp 1
 In the diagram below, a box like this:
 @verbatim
 +---+
@@ -590,20 +597,22 @@ All multibyte values are stored in little endian order.
 A four byte string, identifying the lzip format, with the value "LZIP".
 
 @item VN (version number, 1 byte)
-Just in case something needs to be modified in the future. Valid values
-are 0 and 1. Version 0 files are deprecated. They can contain only one
-member and lack the @samp{Member size} field.
+Just in case something needs to be modified in the future. 1 for now.
 
 @item DS (coded dictionary size, 1 byte)
-Bits 4-0 contain the base 2 logarithm of the base dictionary size.@*
-Bits 7-5 contain the number of "wedges" to substract from the base
-dictionary size to obtain the dictionary size. The size of a wedge is
-(base dictionary size / 16).@*
+Lzip divides the distance between any two powers of 2 into 8 equally
+spaced intervals, named "wedges". The dictionary size is calculated by
+taking a power of 2 (the base size) and substracting from it a number of
+wedges between 0 and 7. The size of a wedge is (base_size / 16).@*
+Bits 4-0 contain the base 2 logarithm of the base size (12 to 29).@*
+Bits 7-5 contain the number of wedges (0 to 7) to substract from the
+base size to obtain the dictionary size.@*
+Example: 0xD3 = (2^19 - 6 * 2^15) = (512KiB - 6 * 32KiB) = 320KiB@*
 Valid values for dictionary size range from 4KiB to 512MiB.
 
 @item Lzma stream
 The lzma stream, finished by an end of stream marker. Uses default values
-for encoder properties.
+for encoder properties. See the lzip manual for a full description.
 
 @item CRC32 (4 bytes)
 CRC of the uncompressed original data.
@@ -612,8 +621,9 @@ CRC of the uncompressed original data.
 Size of the uncompressed original data.
 
 @item Member size (8 bytes)
-Total size of the member, including header and trailer. This facilitates
-safe recovery of undamaged members from multi-member files.
+Total size of the member, including header and trailer. This field acts
+as a distributed index, allows the verification of stream integrity, and
+facilitates safe recovery of undamaged members from multi-member files.
 
 @end table
 

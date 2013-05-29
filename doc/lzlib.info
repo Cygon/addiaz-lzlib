@@ -12,7 +12,7 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 1.3, 29 February 2012).
+This manual is for Lzlib (version 1.4, 28 May 2013).
 
 * Menu:
 
@@ -30,7 +30,7 @@ This manual is for Lzlib (version 1.3, 29 February 2012).
 * Concept Index::               Index of concepts
 
 
-   Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
+   Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
    This manual is free documentation: you have unlimited permission to
 copy, distribute and modify it.
@@ -113,7 +113,7 @@ minimum sizes:
 
    * Input compression buffer. Written to by the `LZ_compress_write'
      function. Its size is two times the dictionary size set with the
-     `LZ_compress_open' function or 128KiB, whichever is larger.
+     `LZ_compress_open' function or 64KiB, whichever is larger.
 
    * Output compression buffer. Read from by the `LZ_compress_read'
      function. Its size is 64KiB.
@@ -161,12 +161,13 @@ File: lzlib.info,  Node: Compression Functions,  Next: Decompression Functions, 
 ***********************
 
 These are the functions used to compress data. In case of error, all of
-them return -1, except `LZ_compress_open' whose return value must be
-verified by calling `LZ_compress_errno' before using it.
+them return -1 or 0, for signed and unsigned return values respectively,
+except `LZ_compress_open' whose return value must be verified by
+calling `LZ_compress_errno' before using it.
 
  -- Function: struct LZ_Encoder * LZ_compress_open ( const int
-          DICTIONARY_SIZE, const int MATCH_LEN_LIMIT, const long long
-          MEMBER_SIZE )
+          DICTIONARY_SIZE, const int MATCH_LEN_LIMIT, const unsigned
+          long long MEMBER_SIZE )
      Initializes the internal stream state for compression and returns a
      pointer that can only be used as the ENCODER argument for the
      other LZ_compress functions, or a null pointer if the encoder
@@ -191,7 +192,7 @@ verified by calling `LZ_compress_errno' before using it.
      size limit is 100kB. Small member size may degrade compression
      ratio, so use it only when needed. To produce a single-member data
      stream, give MEMBER_SIZE a value larger than the amount of data to
-     be produced, for example LLONG_MAX.
+     be produced, for example INT64_MAX.
 
  -- Function: int LZ_compress_close ( struct LZ_Encoder * const ENCODER
           )
@@ -209,7 +210,7 @@ verified by calling `LZ_compress_errno' before using it.
      new member can be started with `LZ_compress_restart_member'.
 
  -- Function: int LZ_compress_restart_member ( struct LZ_Encoder *
-          const ENCODER, const long long MEMBER_SIZE )
+          const ENCODER, const unsigned long long MEMBER_SIZE )
      Use this function to start a new member, in a multi-member data
      stream.  Call this function only after
      `LZ_compress_member_finished' indicates that the current member
@@ -245,10 +246,10 @@ verified by calling `LZ_compress_errno' before using it.
  -- Function: int LZ_compress_write_size ( struct LZ_Encoder * const
           ENCODER )
      The `LZ_compress_write_size' function returns the maximum number of
-     bytes that can be inmediately written through the
+     bytes that can be immediately written through the
      `LZ_compress_write' function.
 
-     It is guaranteed that an inmediate call to `LZ_compress_write' will
+     It is guaranteed that an immediate call to `LZ_compress_write' will
      accept a SIZE up to the returned number of bytes.
 
  -- Function: enum LZ_Errno LZ_compress_errno ( struct LZ_Encoder *
@@ -266,22 +267,22 @@ verified by calling `LZ_compress_errno' before using it.
      has been fully read and `LZ_compress_restart_member' can be safely
      called.  Otherwise it returns 0.
 
- -- Function: long long LZ_compress_data_position ( struct LZ_Encoder *
-          const ENCODER )
+ -- Function: unsigned long long LZ_compress_data_position ( struct
+          LZ_Encoder * const ENCODER )
      Returns the number of input bytes already compressed in the current
      member.
 
- -- Function: long long LZ_compress_member_position ( struct LZ_Encoder
-          * const ENCODER )
+ -- Function: unsigned long long LZ_compress_member_position ( struct
+          LZ_Encoder * const ENCODER )
      Returns the number of compressed bytes already produced, but
      perhaps not yet read, in the current member.
 
- -- Function: long long LZ_compress_total_in_size ( struct LZ_Encoder *
-          const ENCODER )
+ -- Function: unsigned long long LZ_compress_total_in_size ( struct
+          LZ_Encoder * const ENCODER )
      Returns the total number of input bytes already compressed.
 
- -- Function: long long LZ_compress_total_out_size ( struct LZ_Encoder
-          * const ENCODER )
+ -- Function: unsigned long long LZ_compress_total_out_size ( struct
+          LZ_Encoder * const ENCODER )
      Returns the total number of compressed bytes already produced, but
      perhaps not yet read.
 
@@ -292,8 +293,9 @@ File: lzlib.info,  Node: Decompression Functions,  Next: Error Codes,  Prev: Com
 *************************
 
 These are the functions used to decompress data. In case of error, all
-of them return -1, except `LZ_decompress_open' whose return value must
-be verified by calling `LZ_decompress_errno' before using it.
+of them return -1 or 0, for signed and unsigned return values
+respectively, except `LZ_decompress_open' whose return value must be
+verified by calling `LZ_decompress_errno' before using it.
 
  -- Function: struct LZ_Decoder * LZ_decompress_open ( void )
      Initializes the internal stream state for decompression and
@@ -360,10 +362,10 @@ be verified by calling `LZ_decompress_errno' before using it.
  -- Function: int LZ_decompress_write_size ( struct LZ_Decoder * const
           DECODER )
      The `LZ_decompress_write_size' function returns the maximum number
-     of bytes that can be inmediately written through the
+     of bytes that can be immediately written through the
      `LZ_decompress_write' function.
 
-     It is guaranteed that an inmediate call to `LZ_decompress_write'
+     It is guaranteed that an immediate call to `LZ_decompress_write'
      will accept a SIZE up to the returned number of bytes.
 
  -- Function: enum LZ_Errno LZ_decompress_errno ( struct LZ_Decoder *
@@ -391,27 +393,27 @@ be verified by calling `LZ_decompress_errno' before using it.
           const DECODER )
      Returns the dictionary size of current member from member header.
 
- -- Function: unsigned int LZ_decompress_data_crc ( struct LZ_Decoder *
+ -- Function: unsigned LZ_decompress_data_crc ( struct LZ_Decoder *
           const DECODER )
      Returns the 32 bit Cyclic Redundancy Check of the data
      decompressed from the current member. The returned value is valid
      only when `LZ_decompress_member_finished' returns 1.
 
- -- Function: long long LZ_decompress_data_position ( struct LZ_Decoder
-          * const DECODER )
+ -- Function: unsigned long long LZ_decompress_data_position ( struct
+          LZ_Decoder * const DECODER )
      Returns the number of decompressed bytes already produced, but
      perhaps not yet read, in the current member.
 
- -- Function: long long LZ_decompress_member_position ( struct
+ -- Function: unsigned long long LZ_decompress_member_position ( struct
           LZ_Decoder * const DECODER )
      Returns the number of input bytes already decompressed in the
      current member.
 
- -- Function: long long LZ_decompress_total_in_size ( struct LZ_Decoder
-          * const DECODER )
+ -- Function: unsigned long long LZ_decompress_total_in_size ( struct
+          LZ_Decoder * const DECODER )
      Returns the total number of input bytes already decompressed.
 
- -- Function: long long LZ_decompress_total_out_size ( struct
+ -- Function: unsigned long long LZ_decompress_total_out_size ( struct
           LZ_Decoder * const DECODER )
      Returns the total number of decompressed bytes already produced,
      but perhaps not yet read.
@@ -490,7 +492,12 @@ File: lzlib.info,  Node: Data Format,  Next: Examples,  Prev: Error Messages,  U
 9 Data Format
 *************
 
-In the diagram below, a box like this:
+Perfection is reached, not when there is no longer anything to add, but
+when there is no longer anything to take away.
+-- Antoine de Saint-Exupery
+
+
+   In the diagram below, a box like this:
 +---+
 |   | <-- the vertical bars might be missing
 +---+
@@ -519,20 +526,25 @@ with no additional information before, between, or after them.
      "LZIP".
 
 `VN (version number, 1 byte)'
-     Just in case something needs to be modified in the future. Valid
-     values are 0 and 1. Version 0 files are deprecated. They can
-     contain only one member and lack the `Member size' field.
+     Just in case something needs to be modified in the future. 1 for
+     now.
 
 `DS (coded dictionary size, 1 byte)'
-     Bits 4-0 contain the base 2 logarithm of the base dictionary size.
-     Bits 7-5 contain the number of "wedges" to substract from the base
-     dictionary size to obtain the dictionary size. The size of a wedge
-     is (base dictionary size / 16).
+     Lzip divides the distance between any two powers of 2 into 8
+     equally spaced intervals, named "wedges". The dictionary size is
+     calculated by taking a power of 2 (the base size) and substracting
+     from it a number of wedges between 0 and 7. The size of a wedge is
+     (base_size / 16).
+     Bits 4-0 contain the base 2 logarithm of the base size (12 to 29).
+     Bits 7-5 contain the number of wedges (0 to 7) to substract from
+     the base size to obtain the dictionary size.
+     Example: 0xD3 = (2^19 - 6 * 2^15) = (512KiB - 6 * 32KiB) = 320KiB
      Valid values for dictionary size range from 4KiB to 512MiB.
 
 `Lzma stream'
      The lzma stream, finished by an end of stream marker. Uses default
-     values for encoder properties.
+     values for encoder properties. See the lzip manual for a full
+     description.
 
 `CRC32 (4 bytes)'
      CRC of the uncompressed original data.
@@ -541,9 +553,10 @@ with no additional information before, between, or after them.
      Size of the uncompressed original data.
 
 `Member size (8 bytes)'
-     Total size of the member, including header and trailer. This
-     facilitates safe recovery of undamaged members from multi-member
-     files.
+     Total size of the member, including header and trailer. This field
+     acts as a distributed index, allows the verification of stream
+     integrity, and facilitates safe recovery of undamaged members from
+     multi-member files.
 
 
 
@@ -709,18 +722,18 @@ Concept Index
 
 Tag Table:
 Node: Top219
-Node: Introduction1318
-Node: Library Version3164
-Node: Buffering3809
+Node: Introduction1319
+Node: Library Version3165
+Node: Buffering3810
 Node: Parameter Limits4929
 Node: Compression Functions5886
-Node: Decompression Functions11985
-Node: Error Codes18057
-Node: Error Messages19996
-Node: Data Format20575
-Node: Examples22584
-Node: Problems26667
-Node: Concept Index27239
+Node: Decompression Functions12096
+Node: Error Codes18257
+Node: Error Messages20196
+Node: Data Format20775
+Node: Examples23268
+Node: Problems27351
+Node: Concept Index27923
 
 End Tag Table
 

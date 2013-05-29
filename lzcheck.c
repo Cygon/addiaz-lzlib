@@ -1,5 +1,5 @@
 /*  Lzcheck - A test program for the lzlib library
-    Copyright (C) 2009, 2010, 2011, 2012 Antonio Diaz Diaz.
+    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
@@ -23,19 +23,10 @@
 
 #include "lzlib.h"
 
-#ifndef LLONG_MAX
-#define LLONG_MAX  0x7FFFFFFFFFFFFFFFLL
-#endif
-#ifndef LLONG_MIN
-#define LLONG_MIN  (-LLONG_MAX - 1LL)
-#endif
-#ifndef ULLONG_MAX
-#define ULLONG_MAX 0xFFFFFFFFFFFFFFFFULL
-#endif
-
 #ifndef min
   #define min(x,y) ((x) <= (y) ? (x) : (y))
 #endif
+
 
 enum { buffer_size = 32768 };
 uint8_t in_buffer[buffer_size];
@@ -45,13 +36,21 @@ uint8_t out_buffer[buffer_size];
 
 int main( const int argc, const char * const argv[] )
   {
+  const int dictionary_size = 1 << 20;
+  const int match_len_limit = 36;
+  const unsigned long long member_size = INT64_MAX;
+  struct LZ_Encoder * encoder;
+  struct LZ_Decoder * decoder;
+  FILE * file;
+  int retval = 0;
+
   if( argc < 2 )
     {
     fprintf( stderr, "Usage: lzcheck filename.txt\n" );
     return 1;
     }
 
-  FILE *file = fopen( argv[1], "rb" );
+  file = fopen( argv[1], "rb" );
   if( !file )
     {
     fprintf( stderr, "lzcheck: Can't open file '%s' for reading\n", argv[1] );
@@ -59,11 +58,7 @@ int main( const int argc, const char * const argv[] )
     }
 /*  fprintf( stderr, "lzcheck: Testing file '%s'\n", argv[1] ); */
 
-  const int dictionary_size = 1 << 20;
-  const int match_len_limit = 36;
-  const long long member_size = LLONG_MAX;
-  struct LZ_Encoder * const encoder =
-    LZ_compress_open( dictionary_size, match_len_limit, member_size );
+  encoder = LZ_compress_open( dictionary_size, match_len_limit, member_size );
   if( !encoder || LZ_compress_errno( encoder ) != LZ_ok )
     {
     const bool mem_error = ( LZ_compress_errno( encoder ) == LZ_mem_error );
@@ -77,7 +72,7 @@ int main( const int argc, const char * const argv[] )
     return 3;
     }
 
-  struct LZ_Decoder * const decoder = LZ_decompress_open();
+  decoder = LZ_decompress_open();
   if( !decoder || LZ_decompress_errno( decoder ) != LZ_ok )
     {
     LZ_decompress_close( decoder );
@@ -85,7 +80,6 @@ int main( const int argc, const char * const argv[] )
     return 1;
     }
 
-  int retval = 0;
   while( retval <= 1 )
     {
     int i, l, r;
@@ -94,11 +88,12 @@ int main( const int argc, const char * const argv[] )
 
     for( l = 0, r = 1; r <= read_size; l = r, ++r )
       {
+      int in_size, mid_size, out_size;
       while( r < read_size && in_buffer[r-1] != '\n' ) ++r;
-      const int in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
+      in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
       if( in_size < r - l ) r = l + in_size;
       LZ_compress_sync_flush( encoder );
-      const int mid_size = LZ_compress_read( encoder, mid_buffer, buffer_size );
+      mid_size = LZ_compress_read( encoder, mid_buffer, buffer_size );
       if( mid_size < 0 )
         {
         fprintf( stderr, "lzcheck: LZ_compress_read error: %s.\n",
@@ -106,7 +101,7 @@ int main( const int argc, const char * const argv[] )
         retval = 3; break;
         }
       LZ_decompress_write( decoder, mid_buffer, mid_size );
-      const int out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
+      out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
       if( out_size < 0 )
         {
         fprintf( stderr, "lzcheck: LZ_decompress_read error: %s.\n",
@@ -146,22 +141,22 @@ int main( const int argc, const char * const argv[] )
 
   while( retval <= 1 )
     {
-    int i, l, r;
+    int i, l, r, size;
     const int read_size = fread( in_buffer, 1, buffer_size / 2, file );
     if( read_size <= 0 ) break;			/* end of file */
 
     for( l = 0, r = 1; r <= read_size; l = r, ++r )
       {
+      int leading_garbage, in_size, mid_size, out_size;
       while( r < read_size && in_buffer[r-1] != '\n' ) ++r;
-      const int leading_garbage = (l == 0) ? min( r, read_size / 2 ) : 0;
-      const int in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
+      leading_garbage = (l == 0) ? min( r, read_size / 2 ) : 0;
+      in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
       if( in_size < r - l ) r = l + in_size;
       LZ_compress_sync_flush( encoder );
       if( leading_garbage )
         memset( mid_buffer, in_buffer[0], leading_garbage );
-      const int mid_size = LZ_compress_read( encoder,
-                                             mid_buffer + leading_garbage,
-                                             buffer_size - leading_garbage );
+      mid_size = LZ_compress_read( encoder, mid_buffer + leading_garbage,
+                                   buffer_size - leading_garbage );
       if( mid_size < 0 )
         {
         fprintf( stderr, "lzcheck: LZ_compress_read error: %s.\n",
@@ -169,7 +164,7 @@ int main( const int argc, const char * const argv[] )
         retval = 3; break;
         }
       LZ_decompress_write( decoder, mid_buffer, mid_size + leading_garbage );
-      int out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
+      out_size = LZ_decompress_read( decoder, out_buffer, buffer_size );
       if( out_size < 0 )
         {
         if( LZ_decompress_errno( decoder ) == LZ_header_error ||
@@ -213,7 +208,7 @@ int main( const int argc, const char * const argv[] )
       retval = 3; break;
       }
 
-    const int size = min( 100, read_size );
+    size = min( 100, read_size );
     if( LZ_compress_write( encoder, in_buffer, size ) != size ||
         LZ_compress_finish( encoder ) < 0 ||
         LZ_decompress_write( decoder, mid_buffer, LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
