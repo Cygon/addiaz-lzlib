@@ -24,21 +24,34 @@ mkdir tmp
 cd "${objdir}"/tmp
 
 cat "${testdir}"/test.txt > in || framework_failure
+in_lz="${testdir}"/test.txt.lz
 fail=0
 
 printf "testing lzlib-%s..." "$2"
 
 "${LZIP}" -cqs-1 in > /dev/null
-if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+if [ $? = 1 ] ; then printf . ; else fail=1 ; printf - ; fi
 "${LZIP}" -cqs0 in > /dev/null
-if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+if [ $? = 1 ] ; then printf . ; else fail=1 ; printf - ; fi
 "${LZIP}" -cqs4095 in > /dev/null
-if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+if [ $? = 1 ] ; then printf . ; else fail=1 ; printf - ; fi
 "${LZIP}" -cqm274 in > /dev/null
-if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
+if [ $? = 1 ] ; then printf . ; else fail=1 ; printf - ; fi
+"${LZIP}" -tq in
+if [ $? = 2 ] ; then printf . ; else fail=1 ; printf - ; fi
+"${LZIP}" -tq < in
+if [ $? = 2 ] ; then printf . ; else fail=1 ; printf - ; fi
+"${LZIP}" -cdq in
+if [ $? = 2 ] ; then printf . ; else fail=1 ; printf - ; fi
+"${LZIP}" -cdq < in
+if [ $? = 2 ] ; then printf . ; else fail=1 ; printf - ; fi
+dd if="${in_lz}" bs=1 count=6 2> /dev/null | "${LZIP}" -tq
+if [ $? = 2 ] ; then printf . ; else printf - ; fail=1 ; fi
+dd if="${in_lz}" bs=1 count=20 2> /dev/null | "${LZIP}" -tq
+if [ $? = 2 ] ; then printf . ; else printf - ; fail=1 ; fi
 
-"${LZIP}" -t "${testdir}"/test.txt.lz || fail=1
-"${LZIP}" -cd "${testdir}"/test.txt.lz > copy || fail=1
+"${LZIP}" -t "${in_lz}" || fail=1
+"${LZIP}" -cd "${in_lz}" > copy || fail=1
 cmp in copy || fail=1
 printf .
 
@@ -47,9 +60,9 @@ printf .
 cmp in copy || fail=1
 printf .
 
-"${LZIP}" -cfq "${testdir}"/test.txt.lz > out
-if [ $? != 1 ] ; then fail=1 ; printf - ; else printf . ; fi
-"${LZIP}" -cF "${testdir}"/test.txt.lz > out || fail=1
+"${LZIP}" -cfq "${in_lz}" > out
+if [ $? = 1 ] ; then printf . ; else fail=1 ; printf - ; fi
+"${LZIP}" -cF "${in_lz}" > out || fail=1
 "${LZIP}" -cd out | "${LZIP}" -d > copy || fail=1
 cmp in copy || fail=1
 printf .
@@ -60,30 +73,30 @@ for i in s4Ki 0 1 2 3 4 5 6 7 8s16 9s16 ; do
 	printf "garbage" >> copy.lz || fail=1
 	"${LZIP}" -df copy.lz || fail=1
 	cmp in copy || fail=1
-	printf .
 done
+printf .
 
 for i in s4Ki 0 1 2 3 4 5 6 7 8s16 9s16 ; do
 	"${LZIP}" -c -$i in > out || fail=1
 	printf "g" >> out || fail=1
 	"${LZIP}" -cd out > copy || fail=1
 	cmp in copy || fail=1
-	printf .
 done
+printf .
 
 for i in s4Ki 0 1 2 3 4 5 6 7 8s16 9s16 ; do
 	"${LZIP}" -$i < in > out || fail=1
 	"${LZIP}" -d < out > copy || fail=1
 	cmp in copy || fail=1
-	printf .
 done
+printf .
 
 for i in s4Ki 0 1 2 3 4 5 6 7 8s16 9s16 ; do
 	"${LZIP}" -f -$i -o out < in || fail=1
 	"${LZIP}" -df -o copy < out.lz || fail=1
 	cmp in copy || fail=1
-	printf .
 done
+printf .
 
 "${LZIP}" < in > anyothername || fail=1
 "${LZIP}" -d anyothername || fail=1
@@ -97,7 +110,6 @@ cmp in2 copy2 || fail=1
 printf .
 
 "${BBEXAMPLE}" in || fail=1
-printf .
 "${BBEXAMPLE}" out || fail=1
 printf .
 

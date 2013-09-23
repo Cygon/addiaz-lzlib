@@ -1,4 +1,4 @@
-/*  Lzlib - A compression library for lzip files
+/*  Lzlib - Compression library for lzip files
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
@@ -239,9 +239,8 @@ struct Matchfinder
   int num_prev_positions;	/* size of prev_positions */
   bool at_stream_end;		/* stream_pos shows real end of file */
   bool been_flushed;
+  bool flushing;
   };
-
-static bool Mf_normalize_pos( struct Matchfinder * const mf );
 
 static int Mf_write_data( struct Matchfinder * const mf,
                           const uint8_t * const inbuf, const int size )
@@ -254,6 +253,8 @@ static int Mf_write_data( struct Matchfinder * const mf,
     }
   return sz;
   }
+
+static bool Mf_normalize_pos( struct Matchfinder * const mf );
 
 static inline void Mf_free( struct Matchfinder * const mf )
   {
@@ -271,16 +272,18 @@ static inline unsigned long long
 Mf_data_position( const struct Matchfinder * const mf )
   { return mf->partial_data_pos + mf->pos; }
 
+static inline void Mf_finish( struct Matchfinder * const mf )
+  { mf->at_stream_end = true; mf->flushing = false; }
+
 static inline bool Mf_finished( const struct Matchfinder * const mf )
   { return mf->at_stream_end && mf->pos >= mf->stream_pos; }
 
-static inline const uint8_t *
-Mf_ptr_to_current_pos( const struct Matchfinder * const mf )
-  { return mf->buffer + mf->pos; }
-
 static inline void Mf_set_flushing( struct Matchfinder * const mf,
                                     const bool flushing )
-  { mf->at_stream_end = flushing; }
+  { mf->flushing = flushing; }
+
+static inline bool Mf_flushing_or_end( const struct Matchfinder * const mf )
+  { return mf->at_stream_end || mf->flushing; }
 
 static inline int Mf_free_bytes( const struct Matchfinder * const mf )
   { if( mf->at_stream_end ) return 0; return mf->buffer_size - mf->stream_pos; }
@@ -288,8 +291,12 @@ static inline int Mf_free_bytes( const struct Matchfinder * const mf )
 static inline bool Mf_enough_available_bytes( const struct Matchfinder * const mf )
   {
   return ( mf->pos + after_size <= mf->stream_pos ||
-           ( mf->at_stream_end && mf->pos < mf->stream_pos ) );
+           ( Mf_flushing_or_end( mf ) && mf->pos < mf->stream_pos ) );
   }
+
+static inline const uint8_t *
+Mf_ptr_to_current_pos( const struct Matchfinder * const mf )
+  { return mf->buffer + mf->pos; }
 
 static inline bool Mf_dec_pos( struct Matchfinder * const mf,
                                const int ahead )
@@ -321,7 +328,6 @@ static inline bool Mf_move_pos( struct Matchfinder * const mf )
   return true;
   }
 
-static void Mf_reset( struct Matchfinder * const mf );
 static int Mf_get_match_pairs( struct Matchfinder * const mf, struct Pair * pairs );
 
 
@@ -585,12 +591,12 @@ struct LZ_encoder
   Bit_model bm_rep1[states];
   Bit_model bm_rep2[states];
   Bit_model bm_len[states][pos_states];
-  Bit_model bm_dis_slot[max_dis_states][1<<dis_slot_bits];
+  Bit_model bm_dis_slot[dis_states][1<<dis_slot_bits];
   Bit_model bm_dis[modeled_distances-end_dis_model];
   Bit_model bm_align[dis_align_size];
 
   struct Matchfinder * matchfinder;
-  struct Range_encoder range_encoder;
+  struct Range_encoder renc;
   struct Len_encoder match_len_encoder;
   struct Len_encoder rep_len_encoder;
 
@@ -599,8 +605,8 @@ struct LZ_encoder
   struct Pair pairs[max_match_len+1];
   struct Trial trials[max_num_trials];
 
-  int dis_slot_prices[max_dis_states][2*max_dictionary_bits];
-  int dis_prices[max_dis_states][modeled_distances];
+  int dis_slot_prices[dis_states][2*max_dictionary_bits];
+  int dis_prices[dis_states][modeled_distances];
   int align_prices[dis_align_size];
   int align_price_count;
   int fill_counter;
@@ -611,13 +617,12 @@ struct LZ_encoder
 
 static inline bool LZe_member_finished( const struct LZ_encoder * const encoder )
   {
-  return ( encoder->member_finished &&
-           !Cb_used_bytes( &encoder->range_encoder.cb ) );
+  return ( encoder->member_finished && !Cb_used_bytes( &encoder->renc.cb ) );
   }
 
 
 static inline void LZe_free( struct LZ_encoder * const encoder )
-  { Re_free( &encoder->range_encoder ); }
+  { Re_free( &encoder->renc ); }
 
 static inline unsigned LZe_crc( const struct LZ_encoder * const encoder )
   { return encoder->crc ^ 0xFFFFFFFFU; }
@@ -702,13 +707,13 @@ static inline int LZe_price_matched( const struct LZ_encoder * const encoder,
 
 static inline void LZe_encode_literal( struct LZ_encoder * const encoder,
                                        uint8_t prev_byte, uint8_t symbol )
-  { Re_encode_tree( &encoder->range_encoder,
+  { Re_encode_tree( &encoder->renc,
                     encoder->bm_literal[get_lit_state(prev_byte)], symbol, 8 ); }
 
 static inline void LZe_encode_matched( struct LZ_encoder * const encoder,
                                        uint8_t prev_byte, uint8_t symbol,
                                        uint8_t match_byte )
-  { Re_encode_matched( &encoder->range_encoder,
+  { Re_encode_matched( &encoder->renc,
                        encoder->bm_literal[get_lit_state(prev_byte)],
                        symbol, match_byte ); }
 
@@ -717,9 +722,8 @@ static inline void LZe_encode_pair( struct LZ_encoder * const encoder,
                                     const int pos_state )
   {
   const int dis_slot = get_slot( dis );
-  Lee_encode( &encoder->match_len_encoder, &encoder->range_encoder, len, pos_state );
-  Re_encode_tree( &encoder->range_encoder,
-                  encoder->bm_dis_slot[get_dis_state(len)],
+  Lee_encode( &encoder->match_len_encoder, &encoder->renc, len, pos_state );
+  Re_encode_tree( &encoder->renc, encoder->bm_dis_slot[get_dis_state(len)],
                   dis_slot, dis_slot_bits );
 
   if( dis_slot >= start_dis_model )
@@ -729,14 +733,14 @@ static inline void LZe_encode_pair( struct LZ_encoder * const encoder,
     const uint32_t direct_dis = dis - base;
 
     if( dis_slot < end_dis_model )
-      Re_encode_tree_reversed( &encoder->range_encoder,
+      Re_encode_tree_reversed( &encoder->renc,
                                encoder->bm_dis + base - dis_slot - 1,
                                direct_dis, direct_bits );
     else
       {
-      Re_encode( &encoder->range_encoder, direct_dis >> dis_align_bits,
+      Re_encode( &encoder->renc, direct_dis >> dis_align_bits,
                  direct_bits - dis_align_bits );
-      Re_encode_tree_reversed( &encoder->range_encoder, encoder->bm_align,
+      Re_encode_tree_reversed( &encoder->renc, encoder->bm_align,
                                direct_dis, dis_align_bits );
       --encoder->align_price_count;
       }

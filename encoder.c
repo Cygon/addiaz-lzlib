@@ -1,4 +1,4 @@
-/*  Lzlib - A compression library for lzip files
+/*  Lzlib - Compression library for lzip files
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
@@ -51,7 +51,8 @@ static bool Mf_init( struct Matchfinder * const mf,
                      const int dict_size, const int match_len_limit )
   {
   const int buffer_size_limit = ( 2 * dict_size ) + before_size + after_size;
-  int i, size;
+  unsigned size;
+  int i;
 
   mf->partial_data_pos = 0;
   mf->match_len_limit = match_len_limit;
@@ -62,6 +63,7 @@ static bool Mf_init( struct Matchfinder * const mf,
                16 + ( match_len_limit / 2 ) : 256;
   mf->at_stream_end = false;
   mf->been_flushed = false;
+  mf->flushing = false;
 
   mf->buffer_size = max( 65536, buffer_size_limit );
   mf->buffer = (uint8_t *)malloc( mf->buffer_size );
@@ -69,7 +71,7 @@ static bool Mf_init( struct Matchfinder * const mf,
   mf->dictionary_size = dict_size;
   mf->pos_limit = mf->buffer_size - after_size;
   size = 1 << max( 16, real_bits( mf->dictionary_size - 1 ) - 2 );
-  if( mf->dictionary_size > 1 << 26 )
+  if( mf->dictionary_size > 1 << 26 )		/* 64 MiB */
     size >>= 1;
   mf->key4_mask = size - 1;
   size += num_prev_positions2;
@@ -77,7 +79,8 @@ static bool Mf_init( struct Matchfinder * const mf,
 
   mf->num_prev_positions = size;
   size += ( 2 * ( mf->dictionary_size + 1 ) );
-  mf->prev_positions = (int32_t *)malloc( size * sizeof (int32_t) );
+  if( size * sizeof (int32_t) <= size ) mf->prev_positions = 0;
+  else mf->prev_positions = (int32_t *)malloc( size * sizeof (int32_t) );
   if( !mf->prev_positions ) { free( mf->buffer ); return false; }
   mf->prev_pos_tree = mf->prev_positions + mf->num_prev_positions;
   for( i = 0; i < mf->num_prev_positions; ++i ) mf->prev_positions[i] = -1;
@@ -116,6 +119,7 @@ static void Mf_reset( struct Matchfinder * const mf )
   mf->cyclic_pos = 0;
   mf->at_stream_end = false;
   mf->been_flushed = false;
+  mf->flushing = false;
   for( i = 0; i < mf->num_prev_positions; ++i ) mf->prev_positions[i] = -1;
   }
 
@@ -264,18 +268,17 @@ static bool LZe_full_flush( struct LZ_encoder * const encoder, const State state
   const int pos_state = Mf_data_position( encoder->matchfinder ) & pos_state_mask;
   File_trailer trailer;
   if( encoder->member_finished ||
-      Cb_free_bytes( &encoder->range_encoder.cb ) < max_marker_size + Ft_size )
+      Cb_free_bytes( &encoder->renc.cb ) < max_marker_size + Ft_size )
     return false;
-  Re_encode_bit( &encoder->range_encoder, &encoder->bm_match[state][pos_state], 1 );
-  Re_encode_bit( &encoder->range_encoder, &encoder->bm_rep[state], 0 );
+  Re_encode_bit( &encoder->renc, &encoder->bm_match[state][pos_state], 1 );
+  Re_encode_bit( &encoder->renc, &encoder->bm_rep[state], 0 );
   LZe_encode_pair( encoder, 0xFFFFFFFFU, min_match_len, pos_state );
-  Re_flush( &encoder->range_encoder );
+  Re_flush( &encoder->renc );
   Ft_set_data_crc( trailer, LZe_crc( encoder ) );
   Ft_set_data_size( trailer, Mf_data_position( encoder->matchfinder ) );
-  Ft_set_member_size( trailer, Re_member_position( &encoder->range_encoder ) +
-                               Ft_size );
+  Ft_set_member_size( trailer, Re_member_position( &encoder->renc ) + Ft_size );
   for( i = 0; i < Ft_size; ++i )
-    Cb_put_byte( &encoder->range_encoder.cb, trailer[i] );
+    Cb_put_byte( &encoder->renc.cb, trailer[i] );
   return true;
   }
 
@@ -286,12 +289,12 @@ static bool LZe_sync_flush( struct LZ_encoder * const encoder )
   const int pos_state = Mf_data_position( encoder->matchfinder ) & pos_state_mask;
   const State state = encoder->state;
   if( encoder->member_finished ||
-      Cb_free_bytes( &encoder->range_encoder.cb ) < max_marker_size )
+      Cb_free_bytes( &encoder->renc.cb ) < max_marker_size )
     return false;
-  Re_encode_bit( &encoder->range_encoder, &encoder->bm_match[state][pos_state], 1 );
-  Re_encode_bit( &encoder->range_encoder, &encoder->bm_rep[state], 0 );
+  Re_encode_bit( &encoder->renc, &encoder->bm_match[state][pos_state], 1 );
+  Re_encode_bit( &encoder->renc, &encoder->bm_rep[state], 0 );
   LZe_encode_pair( encoder, 0xFFFFFFFFU, min_match_len + 1, pos_state );
-  Re_flush( &encoder->range_encoder );
+  Re_flush( &encoder->renc );
   return true;
   }
 
@@ -317,11 +320,11 @@ static void LZe_fill_distance_prices( struct LZ_encoder * const encoder )
     const int price =
       price_symbol_reversed( encoder->bm_dis + base - dis_slot - 1,
                              dis - base, direct_bits );
-    for( dis_state = 0; dis_state < max_dis_states; ++dis_state )
+    for( dis_state = 0; dis_state < dis_states; ++dis_state )
       encoder->dis_prices[dis_state][dis] = price;
     }
 
-  for( dis_state = 0; dis_state < max_dis_states; ++dis_state )
+  for( dis_state = 0; dis_state < dis_states; ++dis_state )
     {
     int * const dsp = encoder->dis_slot_prices[dis_state];
     int * const dp = encoder->dis_prices[dis_state];
@@ -358,12 +361,12 @@ static bool LZe_init( struct LZ_encoder * const encoder,
   Bm_array_init( encoder->bm_rep1, states );
   Bm_array_init( encoder->bm_rep2, states );
   Bm_array_init( encoder->bm_len[0], states * pos_states );
-  Bm_array_init( encoder->bm_dis_slot[0], max_dis_states * (1 << dis_slot_bits) );
+  Bm_array_init( encoder->bm_dis_slot[0], dis_states * (1 << dis_slot_bits) );
   Bm_array_init( encoder->bm_dis, modeled_distances - end_dis_model );
   Bm_array_init( encoder->bm_align, dis_align_size );
 
   encoder->matchfinder = mf;
-  if( !Re_init( &encoder->range_encoder ) ) return false;
+  if( !Re_init( &encoder->renc ) ) return false;
   Lee_init( &encoder->match_len_encoder, encoder->matchfinder->match_len_limit );
   Lee_init( &encoder->rep_len_encoder, encoder->matchfinder->match_len_limit );
   encoder->num_dis_slots =
@@ -376,13 +379,13 @@ static bool LZe_init( struct LZ_encoder * const encoder,
   encoder->member_finished = false;
 
   for( i = 0; i < Fh_size; ++i )
-    Cb_put_byte( &encoder->range_encoder.cb, header[i] );
+    Cb_put_byte( &encoder->renc.cb, header[i] );
   return true;
   }
 
 
 /* Return value == number of bytes advanced (ahead).
-   trials[0]..trials[retval-1] contain the steps to encode.
+   trials[0]..trials[ahead-1] contain the steps to encode.
    ( trials[0].dis == -1 && trials[0].price == 1 ) means literal.
 */
 static int LZe_sequence_optimizer( struct LZ_encoder * const encoder,
@@ -583,8 +586,7 @@ static int LZe_sequence_optimizer( struct LZ_encoder * const encoder,
     if( St_is_char( cur_state ) )
       next_price += LZe_price_literal( encoder, prev_byte, cur_byte );
     else
-      next_price += LZe_price_matched( encoder,
-                                       prev_byte, cur_byte, match_byte );
+      next_price += LZe_price_matched( encoder, prev_byte, cur_byte, match_byte );
     if( !Mf_move_pos( encoder->matchfinder ) ) return 0;
 
     /* try last updates to next trial */
@@ -741,15 +743,15 @@ static int LZe_sequence_optimizer( struct LZ_encoder * const encoder,
   }
 
 
-static bool LZe_encode_member( struct LZ_encoder * const encoder,
-                               const bool finish )
+static bool LZe_encode_member( struct LZ_encoder * const encoder )
   {
   const int fill_count =
     ( encoder->matchfinder->match_len_limit > 12 ) ? 128 : 512;
   int ahead, i;
   State * const state = &encoder->state;
+
   if( encoder->member_finished ) return true;
-  if( Re_member_position( &encoder->range_encoder ) >= encoder->member_size_limit )
+  if( Re_member_position( &encoder->renc ) >= encoder->member_size_limit )
     {
     if( LZe_full_flush( encoder, *state ) ) encoder->member_finished = true;
     return true;
@@ -761,10 +763,10 @@ static bool LZe_encode_member( struct LZ_encoder * const encoder,
     const uint8_t prev_byte = 0;
     uint8_t cur_byte;
     if( Mf_available_bytes( encoder->matchfinder ) < max_match_len &&
-        !encoder->matchfinder->at_stream_end )
+        !Mf_flushing_or_end( encoder->matchfinder ) )
       return true;
     cur_byte = Mf_peek( encoder->matchfinder, 0 );
-    Re_encode_bit( &encoder->range_encoder, &encoder->bm_match[*state][0], 0 );
+    Re_encode_bit( &encoder->renc, &encoder->bm_match[*state][0], 0 );
     LZe_encode_literal( encoder, prev_byte, cur_byte );
     CRC32_update_byte( &encoder->crc, cur_byte );
     Mf_get_match_pairs( encoder->matchfinder, 0 );
@@ -774,7 +776,7 @@ static bool LZe_encode_member( struct LZ_encoder * const encoder,
   while( !Mf_finished( encoder->matchfinder ) )
     {
     if( !Mf_enough_available_bytes( encoder->matchfinder ) ||
-        !Re_enough_free_bytes( &encoder->range_encoder ) ) return true;
+        !Re_enough_free_bytes( &encoder->renc ) ) return true;
     if( encoder->pending_num_pairs == 0 )
       {
       if( encoder->fill_counter <= 0 )
@@ -794,7 +796,7 @@ static bool LZe_encode_member( struct LZ_encoder * const encoder,
       const int len = encoder->trials[i].price;
 
       bool bit = ( dis < 0 && len == 1 );
-      Re_encode_bit( &encoder->range_encoder,
+      Re_encode_bit( &encoder->renc,
                      &encoder->bm_match[*state][pos_state], !bit );
       if( bit )					/* literal byte */
         {
@@ -811,28 +813,28 @@ static bool LZe_encode_member( struct LZ_encoder * const encoder,
           }
         *state = St_set_char( *state );
         }
-      else				/* match or repeated match */
+      else					/* match or repeated match */
         {
         CRC32_update_buf( &encoder->crc, Mf_ptr_to_current_pos( encoder->matchfinder ) - ahead, len );
         LZe_mtf_reps( dis, encoder->rep_distances );
         bit = ( dis < num_rep_distances );
-        Re_encode_bit( &encoder->range_encoder, &encoder->bm_rep[*state], bit );
+        Re_encode_bit( &encoder->renc, &encoder->bm_rep[*state], bit );
         if( bit )
           {
           bit = ( dis == 0 );
-          Re_encode_bit( &encoder->range_encoder, &encoder->bm_rep0[*state], !bit );
+          Re_encode_bit( &encoder->renc, &encoder->bm_rep0[*state], !bit );
           if( bit )
-            Re_encode_bit( &encoder->range_encoder, &encoder->bm_len[*state][pos_state], len > 1 );
+            Re_encode_bit( &encoder->renc, &encoder->bm_len[*state][pos_state], len > 1 );
           else
             {
-            Re_encode_bit( &encoder->range_encoder, &encoder->bm_rep1[*state], dis > 1 );
+            Re_encode_bit( &encoder->renc, &encoder->bm_rep1[*state], dis > 1 );
             if( dis > 1 )
-              Re_encode_bit( &encoder->range_encoder, &encoder->bm_rep2[*state], dis > 2 );
+              Re_encode_bit( &encoder->renc, &encoder->bm_rep2[*state], dis > 2 );
             }
           if( len == 1 ) *state = St_set_short_rep( *state );
           else
             {
-            Lee_encode( &encoder->rep_len_encoder, &encoder->range_encoder, len, pos_state );
+            Lee_encode( &encoder->rep_len_encoder, &encoder->renc, len, pos_state );
             *state = St_set_rep( *state );
             }
           }
@@ -844,7 +846,7 @@ static bool LZe_encode_member( struct LZ_encoder * const encoder,
           }
         }
       ahead -= len; i += len;
-      if( Re_member_position( &encoder->range_encoder ) >= encoder->member_size_limit )
+      if( Re_member_position( &encoder->renc ) >= encoder->member_size_limit )
         {
         if( !Mf_dec_pos( encoder->matchfinder, ahead ) ) return false;
         if( LZe_full_flush( encoder, *state ) ) encoder->member_finished = true;
@@ -853,7 +855,6 @@ static bool LZe_encode_member( struct LZ_encoder * const encoder,
       if( ahead <= 0 ) break;
       }
     }
-  if( finish && LZe_full_flush( encoder, *state ) )
-    encoder->member_finished = true;
+  if( LZe_full_flush( encoder, *state ) ) encoder->member_finished = true;
   return true;
   }

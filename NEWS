@@ -1,21 +1,8 @@
-Changes in version 1.4:
+Changes in version 1.5:
 
-Multi-step trials have been implemented.
+Decompression support for deprecated version 0 files has been removed.
 
-Compression ratio has been slightly increased.
+A bug has been fixed that would make an instance of "struct LZ_Encoder"
+unresponsive if "LZ_compress_sync_flush" is called at the wrong moment.
 
-Compression time has been reduced by 8%.
-
-Decompression time has been reduced by 7%.
-
-Arguments and return values of functions in lzlib.h have been changed
-from 'long long' to 'unsigned long long'.
-
-The minimum size of the input compression buffer has been reduced to 64KiB.
-
-"LZ_decompress_read" now tells "LZ_header_error" from "LZ_unexpected_eof"
-the same way as lzip does when the EOF happens at the header.
-
-The target "install-as-lzip" has been added to the Makefile.
-
-The target "install-bin" has been added to the Makefile.
+Minor fixes have been made.

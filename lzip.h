@@ -1,4 +1,4 @@
-/*  Lzlib - A compression library for lzip files
+/*  Lzlib - Compression library for lzip files
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
@@ -83,10 +83,10 @@ enum {
   max_match_len = min_match_len + max_len_symbols - 1,	/* 273 */
   min_match_len_limit = 5,
 
-  max_dis_states = 4 };
+  dis_states = 4 };
 
 static inline int get_dis_state( const int len )
-  { return min( len - min_match_len, max_dis_states - 1 ); }
+  { return min( len - min_match_len, dis_states - 1 ); }
 
 static inline int get_lit_state( const uint8_t prev_byte )
   { return ( prev_byte >> ( 8 - literal_context_bits ) ); }
@@ -208,7 +208,7 @@ static inline uint8_t Fh_version( const File_header data )
   { return data[4]; }
 
 static inline bool Fh_verify_version( const File_header data )
-  { return ( data[4] <= 1 ); }
+  { return ( data[4] == 1 ); }
 
 static inline unsigned Fh_get_dictionary_size( const File_header data )
   {
@@ -218,15 +218,15 @@ static inline unsigned Fh_get_dictionary_size( const File_header data )
   return sz;
   }
 
-static inline bool Fh_set_dictionary_size( File_header data, const int sz )
+static inline bool Fh_set_dictionary_size( File_header data, const unsigned sz )
   {
   if( sz >= min_dictionary_size && sz <= max_dictionary_size )
     {
     data[5] = real_bits( sz - 1 );
     if( sz > min_dictionary_size )
       {
-      const int base_size = 1 << data[5];
-      const int wedge = base_size / 16;
+      const unsigned base_size = 1 << data[5];
+      const unsigned wedge = base_size / 16;
       int i;
       for( i = 7; i >= 1; --i )
         if( base_size - ( i * wedge ) >= sz )
@@ -251,9 +251,6 @@ typedef uint8_t File_trailer[20];
 			/* 12-19 member size including header and trailer */
 
 enum { Ft_size = 20 };
-
-static inline int Ft_versioned_size( const int version )
-  { return ( ( version >= 1 ) ? 20 : 12 ); }
 
 static inline unsigned Ft_get_data_crc( const File_trailer data )
   {

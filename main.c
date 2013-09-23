@@ -1,4 +1,4 @@
-/*  Minilzip - A test program for the lzlib library
+/*  Minilzip - Test program for the lzlib library
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This program is free software: you can redistribute it and/or modify
@@ -88,13 +88,11 @@ struct { const char * from; const char * to; } const known_extensions[] = {
 
 struct Lzma_options
   {
-  int dictionary_size;		/* 4KiB..512MiB */
-  int match_len_limit;		/* 5..273 */
+  int dictionary_size;		/* 4 KiB .. 512 MiB */
+  int match_len_limit;		/* 5 .. 273 */
   };
 
 enum Mode { m_compress, m_decompress, m_test };
-const unsigned long long max_member_size = 0x1000000000000000ULL;
-const unsigned long long max_volume_size = 0x7FFFFFFFFFFFFFFFULL;
 
 char * output_filename = 0;
 int outfd = -1;
@@ -147,7 +145,7 @@ static void Pp_show_msg( struct Pretty_print * const pp, const char * const msg 
 
 static void show_help( void )
   {
-  printf( "%s - A test program for the lzlib library.\n", Program_name );
+  printf( "%s - Test program for the lzlib library.\n", Program_name );
   printf( "\nUsage: %s [options] [files]\n", invocation_name );
   printf( "\nOptions:\n"
           "  -h, --help                     display this help and exit\n"
@@ -161,7 +159,7 @@ static void show_help( void )
           "  -m, --match-length=<bytes>     set match length limit in bytes [36]\n"
           "  -o, --output=<file>            if reading stdin, place the output into <file>\n"
           "  -q, --quiet                    suppress all messages\n"
-          "  -s, --dictionary-size=<bytes>  set dictionary size limit in bytes [8MiB]\n"
+          "  -s, --dictionary-size=<bytes>  set dictionary size limit in bytes [8 MiB]\n"
           "  -S, --volume-size=<bytes>      set volume size limit in bytes\n"
           "  -t, --test                     test compressed file integrity\n"
           "  -v, --verbose                  be verbose (a 2nd -v gives more)\n"
@@ -175,7 +173,8 @@ static void show_help( void )
           "The bidimensional parameter space of LZMA can't be mapped to a linear\n"
           "scale optimal for all files. If your files are large, very repetitive,\n"
           "etc, you may need to use the --match-length and --dictionary-size\n"
-          "options directly to achieve optimal performance.\n"
+          "options directly to achieve optimal performance. For example, -9m64\n"
+          "usually compresses executables more (and faster) than -9.\n"
           "\nExit status: 0 for a normal exit, 1 for environmental problems (file\n"
           "not found, invalid flags, I/O errors, etc), 2 to indicate a corrupt or\n"
           "invalid input file, 3 for an internal consistency error (eg, bug) which\n"
@@ -196,7 +195,7 @@ static void show_version( void )
   }
 
 
-void show_header( struct LZ_Decoder * const decoder )
+static void show_header( struct LZ_Decoder * const decoder )
   {
   const char * const prefix[8] =
     { "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi" };
@@ -209,8 +208,6 @@ void show_header( struct LZ_Decoder * const decoder )
   for( i = 0; i < 8 && ( num > 9999 || ( exact && num >= factor ) ); ++i )
     { num /= factor; if( num % factor != 0 ) exact = false;
       p = prefix[i]; np = ""; }
-  if( verbosity >= 4 )
-    fprintf( stderr, "version %d, ", LZ_decompress_member_version( decoder ) );
   fprintf( stderr, "dictionary size %s%4u %sB.  ", np, num, p );
   }
 
@@ -323,12 +320,13 @@ static int open_instream( const char * const name, struct stat * const in_statsp
       const bool can_read = ( i == 0 &&
                               ( S_ISBLK( mode ) || S_ISCHR( mode ) ||
                                 S_ISFIFO( mode ) || S_ISSOCK( mode ) ) );
-      if( i != 0 || ( !S_ISREG( mode ) && ( !to_stdout || !can_read ) ) )
+      const bool no_ofile = to_stdout || program_mode == m_test;
+      if( i != 0 || ( !S_ISREG( mode ) && ( !can_read || !no_ofile ) ) )
         {
         if( verbosity >= 0 )
           fprintf( stderr, "%s: Input file '%s' is not a regular file%s.\n",
                    program_name, name,
-                   ( can_read && !to_stdout ) ?
+                   ( can_read && !no_ofile ) ?
                    " and '--stdout' was not specified" : "" );
         close( infd );
         infd = -1;
@@ -468,7 +466,7 @@ static void close_and_set_permissions( const struct stat * const in_statsp )
 /* Returns the number of bytes really read.
    If (returned value < size) and (errno == 0), means EOF was reached.
 */
-int readblock( const int fd, uint8_t * const buf, const int size )
+static int readblock( const int fd, uint8_t * const buf, const int size )
   {
   int rest = size;
   errno = 0;
@@ -487,7 +485,7 @@ int readblock( const int fd, uint8_t * const buf, const int size )
 /* Returns the number of bytes really written.
    If (returned value < size), it is always an error.
 */
-int writeblock( const int fd, const uint8_t * const buf, const int size )
+static int writeblock( const int fd, const uint8_t * const buf, const int size )
   {
   int rest = size;
   errno = 0;
@@ -714,8 +712,8 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
       if( lz_errno == LZ_header_error || ( first_member && out_size == 0 ) )
         {
         if( !first_member ) break;		/* trailing garbage */
-        Pp_show_msg( pp, "Error reading member header" );
-        return 1;
+        Pp_show_msg( pp, "Bad magic number (file not in lzip format)" );
+        return 2;
         }
       if( lz_errno == LZ_mem_error )
         {
@@ -840,6 +838,8 @@ int main( const int argc, const char * const argv[] )
     { 3 << 23, 132 },		/* -8 */
     { 1 << 25, 273 } };		/* -9 */
   struct Lzma_options encoder_options = option_mapping[6];  /* default = "-6" */
+  const unsigned long long max_member_size = 0x0100000000000000ULL;
+  const unsigned long long max_volume_size = 0x4000000000000000ULL;
   unsigned long long member_size = max_member_size;
   unsigned long long volume_size = 0;
   const char * input_filename = "";

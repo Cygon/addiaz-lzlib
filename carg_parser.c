@@ -45,7 +45,7 @@ static char push_back_record( struct Arg_parser * const ap,
                               const int code, const char * const argument )
   {
   const int len = strlen( argument );
-  struct ap_Record *p;
+  struct ap_Record * p;
   void * tmp = ap_resize_buffer( ap->data,
                  ( ap->data_size + 1 ) * sizeof (struct ap_Record) );
   if( !tmp ) return 0;
@@ -222,12 +222,12 @@ char ap_init( struct Arg_parser * const ap,
   while( argind < argc )
     {
     const unsigned char ch1 = argv[argind][0];
-    const unsigned char ch2 = ( ch1 ? argv[argind][1] : 0 );
+    const unsigned char ch2 = ch1 ? argv[argind][1] : 0;
 
     if( ch1 == '-' && ch2 )		/* we found an option */
       {
       const char * const opt = argv[argind];
-      const char * const arg = (argind + 1 < argc) ? argv[argind+1] : 0;
+      const char * const arg = ( argind + 1 < argc ) ? argv[argind+1] : 0;
       if( ch2 == '-' )
         {
         if( !argv[argind][2] ) { ++argind; break; }	/* we found "--" */

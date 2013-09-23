@@ -1,4 +1,4 @@
-/*  Lzlib - A compression library for lzip files
+/*  Lzlib - Compression library for lzip files
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify

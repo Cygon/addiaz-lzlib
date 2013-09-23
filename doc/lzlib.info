@@ -3,7 +3,7 @@ lzlib.texinfo.
 
 INFO-DIR-SECTION Data Compression
 START-INFO-DIR-ENTRY
-* Lzlib: (lzlib).               A compression library for lzip files
+* Lzlib: (lzlib).               Compression library for lzip files
 END-INFO-DIR-ENTRY
 
 
@@ -12,22 +12,22 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 1.4, 28 May 2013).
+This manual is for Lzlib (version 1.5, 15 September 2013).
 
 * Menu:
 
 * Introduction::                Purpose and features of Lzlib
-* Library Version::             Checking library version
+* Library version::             Checking library version
 * Buffering::                   Sizes of Lzlib's buffers
-* Parameter Limits::            Min / max values for some parameters
-* Compression Functions::       Descriptions of the compression functions
-* Decompression Functions::     Descriptions of the decompression functions
-* Error Codes::                 Meaning of codes returned by functions
-* Error Messages::              Error messages corresponding to error codes
-* Data Format::                 Detailed format of the compressed data
+* Parameter limits::            Min / max values for some parameters
+* Compression functions::       Descriptions of the compression functions
+* Decompression functions::     Descriptions of the decompression functions
+* Error codes::                 Meaning of codes returned by functions
+* Error messages::              Error messages corresponding to error codes
+* Data format::                 Detailed format of the compressed data
 * Examples::                    A small tutorial with examples
 * Problems::                    Reporting bugs
-* Concept Index::               Index of concepts
+* Concept index::               Index of concepts
 
 
    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
@@ -36,7 +36,7 @@ This manual is for Lzlib (version 1.4, 28 May 2013).
 copy, distribute and modify it.
 
 
-File: lzlib.info,  Node: Introduction,  Next: Library Version,  Prev: Top,  Up: Top
+File: lzlib.info,  Node: Introduction,  Next: Library version,  Prev: Top,  Up: Top
 
 1 Introduction
 **************
@@ -45,6 +45,10 @@ Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
 lzip format. Lzlib is written in C.
+
+   The lzip file format is designed for long-term data archiving. It is
+clean, provides very safe 4 factor integrity checking, and is backed by
+the recovery capabilities of lziprecover.
 
    The functions and variables forming the interface of the compression
 library are declared in the file `lzlib.h'. Usage examples of the
@@ -73,14 +77,23 @@ compressed data, so the library should never crash even in case of
 corrupted input.
 
    Lzlib implements a simplified version of the LZMA (Lempel-Ziv-Markov
-chain-Algorithm) algorithm. The original LZMA algorithm was designed by
-Igor Pavlov. For a description of the LZMA algorithm, see the Lzip
-manual.
+chain-Algorithm) algorithm. The high compression of LZMA comes from
+combining two basic, well-proven compression ideas: sliding dictionaries
+(LZ77/78) and markov models (the thing used by every compression
+algorithm that uses a range encoder or similar order-0 entropy coder as
+its last stage) with segregation of contexts according to what the bits
+are used for.
+
+   The ideas embodied in lzlib are due to (at least) the following
+people: Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrey
+Markov (for the definition of Markov chains), G.N.N. Martin (for the
+definition of range encoding), Igor Pavlov (for putting all the above
+together in LZMA), and Julian Seward (for bzip2's CLI).
 
 
-File: lzlib.info,  Node: Library Version,  Next: Buffering,  Prev: Introduction,  Up: Top
+File: lzlib.info,  Node: Library version,  Next: Buffering,  Prev: Introduction,  Up: Top
 
-2 Library Version
+2 Library version
 *****************
 
  -- Function: const char * LZ_version ( void )
@@ -98,7 +111,7 @@ application.
        error( "bad library version" );
 
 
-File: lzlib.info,  Node: Buffering,  Next: Parameter Limits,  Prev: Library Version,  Up: Top
+File: lzlib.info,  Node: Buffering,  Next: Parameter limits,  Prev: Library version,  Up: Top
 
 3 Buffering
 ***********
@@ -113,22 +126,22 @@ minimum sizes:
 
    * Input compression buffer. Written to by the `LZ_compress_write'
      function. Its size is two times the dictionary size set with the
-     `LZ_compress_open' function or 64KiB, whichever is larger.
+     `LZ_compress_open' function or 64 KiB, whichever is larger.
 
    * Output compression buffer. Read from by the `LZ_compress_read'
-     function. Its size is 64KiB.
+     function. Its size is 64 KiB.
 
    * Input decompression buffer. Written to by the
-     `LZ_decompress_write' function. Its size is 64KiB.
+     `LZ_decompress_write' function. Its size is 64 KiB.
 
    * Output decompression buffer. Read from by the `LZ_decompress_read'
      function. Its size is the dictionary size set in the header of the
-     member currently being decompressed or 64KiB, whichever is larger.
+     member currently being decompressed or 64 KiB, whichever is larger.
 
 
-File: lzlib.info,  Node: Parameter Limits,  Next: Compression Functions,  Prev: Buffering,  Up: Top
+File: lzlib.info,  Node: Parameter limits,  Next: Compression functions,  Prev: Buffering,  Up: Top
 
-4 Parameter Limits
+4 Parameter limits
 ******************
 
 These functions provide minimum and maximum values for some parameters.
@@ -139,14 +152,14 @@ Current values are shown in square brackets.
      [12].
 
  -- Function: int LZ_min_dictionary_size ( void )
-     Returns the smallest valid dictionary size [4KiB].
+     Returns the smallest valid dictionary size [4 KiB].
 
  -- Function: int LZ_max_dictionary_bits ( void )
      Returns the base 2 logarithm of the largest valid dictionary size
      [29].
 
  -- Function: int LZ_max_dictionary_size ( void )
-     Returns the largest valid dictionary size [512MiB].
+     Returns the largest valid dictionary size [512 MiB].
 
  -- Function: int LZ_min_match_len_limit ( void )
      Returns the smallest valid match length limit [5].
@@ -155,9 +168,9 @@ Current values are shown in square brackets.
      Returns the largest valid match length limit [273].
 
 
-File: lzlib.info,  Node: Compression Functions,  Next: Decompression Functions,  Prev: Parameter Limits,  Up: Top
+File: lzlib.info,  Node: Compression functions,  Next: Decompression functions,  Prev: Parameter limits,  Up: Top
 
-5 Compression Functions
+5 Compression functions
 ***********************
 
 These are the functions used to compress data. In case of error, all of
@@ -179,9 +192,9 @@ calling `LZ_compress_errno' before using it.
      should be freed with `LZ_compress_close' to avoid memory leaks.
 
      DICTIONARY_SIZE sets the dictionary size to be used, in bytes.
-     Valid values range from 4KiB to 512MiB. Note that dictionary sizes
-     are quantized. If the specified size does not match one of the
-     valid sizes, it will be rounded upwards by adding up to
+     Valid values range from 4 KiB to 512 MiB. Note that dictionary
+     sizes are quantized. If the specified size does not match one of
+     the valid sizes, it will be rounded upwards by adding up to
      (DICTIONARY_SIZE / 16) to it.
 
      MATCH_LEN_LIMIT sets the match length limit in bytes. Valid values
@@ -189,7 +202,7 @@ calling `LZ_compress_errno' before using it.
      ratios but longer compression times.
 
      MEMBER_SIZE sets the member size limit in bytes. Minimum member
-     size limit is 100kB. Small member size may degrade compression
+     size limit is 100 kB. Small member size may degrade compression
      ratio, so use it only when needed. To produce a single-member data
      stream, give MEMBER_SIZE a value larger than the amount of data to
      be produced, for example INT64_MAX.
@@ -254,7 +267,7 @@ calling `LZ_compress_errno' before using it.
 
  -- Function: enum LZ_Errno LZ_compress_errno ( struct LZ_Encoder *
           const ENCODER )
-     Returns the current error code for ENCODER (*note Error Codes::).
+     Returns the current error code for ENCODER (*note Error codes::).
 
  -- Function: int LZ_compress_finished ( struct LZ_Encoder * const
           ENCODER )
@@ -287,9 +300,9 @@ calling `LZ_compress_errno' before using it.
      perhaps not yet read.
 
 
-File: lzlib.info,  Node: Decompression Functions,  Next: Error Codes,  Prev: Compression Functions,  Up: Top
+File: lzlib.info,  Node: Decompression functions,  Next: Error codes,  Prev: Compression functions,  Up: Top
 
-6 Decompression Functions
+6 Decompression functions
 *************************
 
 These are the functions used to decompress data. In case of error, all
@@ -370,7 +383,7 @@ verified by calling `LZ_decompress_errno' before using it.
 
  -- Function: enum LZ_Errno LZ_decompress_errno ( struct LZ_Decoder *
           const DECODER )
-     Returns the current error code for DECODER (*note Error Codes::).
+     Returns the current error code for DECODER (*note Error codes::).
 
  -- Function: int LZ_decompress_finished ( struct LZ_Decoder * const
           DECODER )
@@ -419,9 +432,9 @@ verified by calling `LZ_decompress_errno' before using it.
      but perhaps not yet read.
 
 
-File: lzlib.info,  Node: Error Codes,  Next: Error Messages,  Prev: Decompression Functions,  Up: Top
+File: lzlib.info,  Node: Error codes,  Next: Error messages,  Prev: Decompression functions,  Up: Top
 
-7 Error Codes
+7 Error codes
 *************
 
 Most library functions return -1 to indicate that they have failed. But
@@ -471,9 +484,9 @@ whether a call failed. If the call failed, then you can examine
      Problems::).
 
 
-File: lzlib.info,  Node: Error Messages,  Next: Data Format,  Prev: Error Codes,  Up: Top
+File: lzlib.info,  Node: Error messages,  Next: Data format,  Prev: Error codes,  Up: Top
 
-8 Error Messages
+8 Error messages
 ****************
 
  -- Function: const char * LZ_strerror ( const enum LZ_Errno LZ_ERRNO )
@@ -487,9 +500,9 @@ File: lzlib.info,  Node: Error Messages,  Next: Data Format,  Prev: Error Codes,
      `LZ_(de)compress_errno'.
 
 
-File: lzlib.info,  Node: Data Format,  Next: Examples,  Prev: Error Messages,  Up: Top
+File: lzlib.info,  Node: Data format,  Next: Examples,  Prev: Error messages,  Up: Top
 
-9 Data Format
+9 Data format
 *************
 
 Perfection is reached, not when there is no longer anything to add, but
@@ -523,7 +536,7 @@ with no additional information before, between, or after them.
 
 `ID string'
      A four byte string, identifying the lzip format, with the value
-     "LZIP".
+     "LZIP" (0x4C, 0x5A, 0x49, 0x50).
 
 `VN (version number, 1 byte)'
      Just in case something needs to be modified in the future. 1 for
@@ -538,13 +551,15 @@ with no additional information before, between, or after them.
      Bits 4-0 contain the base 2 logarithm of the base size (12 to 29).
      Bits 7-5 contain the number of wedges (0 to 7) to substract from
      the base size to obtain the dictionary size.
-     Example: 0xD3 = (2^19 - 6 * 2^15) = (512KiB - 6 * 32KiB) = 320KiB
-     Valid values for dictionary size range from 4KiB to 512MiB.
+     Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB
+     Valid values for dictionary size range from 4 KiB to 512 MiB.
 
 `Lzma stream'
      The lzma stream, finished by an end of stream marker. Uses default
      values for encoder properties. See the lzip manual for a full
      description.
+     Lzip only uses the LZMA marker `2' ("End Of Stream" marker). Lzlib
+     also uses the LZMA marker `3' ("Sync Flush" marker).
 
 `CRC32 (4 bytes)'
      CRC of the uncompressed original data.
@@ -560,7 +575,7 @@ with no additional information before, between, or after them.
 
 
 
-File: lzlib.info,  Node: Examples,  Next: Problems,  Prev: Data Format,  Up: Top
+File: lzlib.info,  Node: Examples,  Next: Problems,  Prev: Data format,  Up: Top
 
 10 A small tutorial with examples
 *********************************
@@ -680,9 +695,9 @@ next member in case of data error.
      7) LZ_decompress_close
 
 
-File: lzlib.info,  Node: Problems,  Next: Concept Index,  Prev: Examples,  Up: Top
+File: lzlib.info,  Node: Problems,  Next: Concept index,  Prev: Examples,  Up: Top
 
-11 Reporting Bugs
+11 Reporting bugs
 *****************
 
 There are probably bugs in Lzlib. There are certainly errors and
@@ -696,9 +711,9 @@ by running `minilzip --version' or in `LZ_version_string' from
 `lzlib.h'.
 
 
-File: lzlib.info,  Node: Concept Index,  Prev: Problems,  Up: Top
+File: lzlib.info,  Node: Concept index,  Prev: Problems,  Up: Top
 
-Concept Index
+Concept index
 *************
 
  [index ]
@@ -706,34 +721,34 @@ Concept Index
 
 * buffering:                             Buffering.             (line 6)
 * bugs:                                  Problems.              (line 6)
-* compression functions:                 Compression Functions. (line 6)
-* data format:                           Data Format.           (line 6)
-* decompression functions:               Decompression Functions.
+* compression functions:                 Compression functions. (line 6)
+* data format:                           Data format.           (line 6)
+* decompression functions:               Decompression functions.
                                                                 (line 6)
-* error codes:                           Error Codes.           (line 6)
-* error messages:                        Error Messages.        (line 6)
+* error codes:                           Error codes.           (line 6)
+* error messages:                        Error messages.        (line 6)
 * examples:                              Examples.              (line 6)
 * getting help:                          Problems.              (line 6)
 * introduction:                          Introduction.          (line 6)
-* library version:                       Library Version.       (line 6)
-* parameter limits:                      Parameter Limits.      (line 6)
+* library version:                       Library version.       (line 6)
+* parameter limits:                      Parameter limits.      (line 6)
 
 
 
 Tag Table:
-Node: Top219
-Node: Introduction1319
-Node: Library Version3165
-Node: Buffering3810
-Node: Parameter Limits4929
-Node: Compression Functions5886
-Node: Decompression Functions12096
-Node: Error Codes18257
-Node: Error Messages20196
-Node: Data Format20775
-Node: Examples23268
-Node: Problems27351
-Node: Concept Index27923
+Node: Top217
+Node: Introduction1323
+Node: Library version3904
+Node: Buffering4549
+Node: Parameter limits5672
+Node: Compression functions6631
+Node: Decompression functions12844
+Node: Error codes19005
+Node: Error messages20944
+Node: Data format21523
+Node: Examples24172
+Node: Problems28255
+Node: Concept index28827
 
 End Tag Table
 

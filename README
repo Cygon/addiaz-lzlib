@@ -5,6 +5,10 @@ and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
 lzip format. Lzlib is written in C.
 
+The lzip file format is designed for long-term data archiving. It is
+clean, provides very safe 4 factor integrity checking, and is backed by
+the recovery capabilities of lziprecover.
+
 The functions and variables forming the interface of the compression
 library are declared in the file lzlib.h. Usage examples of the library
 are given in the files main.c and bbexample.c from the source
@@ -31,9 +35,18 @@ any signal handler. The decoder checks the consistency of the compressed
 data, so the library should never crash even in case of corrupted input.
 
 Lzlib implements a simplified version of the LZMA (Lempel-Ziv-Markov
-chain-Algorithm) algorithm. The original LZMA algorithm was designed by
-Igor Pavlov. For a description of the LZMA algorithm, see the Lzip
-manual.
+chain-Algorithm) algorithm. The high compression of LZMA comes from
+combining two basic, well-proven compression ideas: sliding dictionaries
+(LZ77/78) and markov models (the thing used by every compression
+algorithm that uses a range encoder or similar order-0 entropy coder as
+its last stage) with segregation of contexts according to what the bits
+are used for.
+
+The ideas embodied in lzlib are due to (at least) the following people:
+Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrey Markov (for
+the definition of Markov chains), G.N.N. Martin (for the definition of
+range encoding), Igor Pavlov (for putting all the above together in
+LZMA), and Julian Seward (for bzip2's CLI).
 
 
 Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.

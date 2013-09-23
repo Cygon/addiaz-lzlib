@@ -1,4 +1,4 @@
-/*  Buff to buff example - A test program for the lzlib library
+/*  Buff to buff example - Test program for the lzlib library
     Copyright (C) 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission

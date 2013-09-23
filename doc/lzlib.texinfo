@@ -6,19 +6,19 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 28 May 2013
-@set VERSION 1.4
+@set UPDATED 15 September 2013
+@set VERSION 1.5
 
 @dircategory Data Compression
 @direntry
-* Lzlib: (lzlib).               A compression library for lzip files
+* Lzlib: (lzlib).               Compression library for lzip files
 @end direntry
 
 
 @ifnothtml
 @titlepage
 @title Lzlib
-@subtitle A compression library for lzip files
+@subtitle Compression library for lzip files
 @subtitle for Lzlib version @value{VERSION}, @value{UPDATED}
 @author by Antonio Diaz Diaz
 
@@ -36,17 +36,17 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 
 @menu
 * Introduction::                Purpose and features of Lzlib
-* Library Version::             Checking library version
+* Library version::             Checking library version
 * Buffering::                   Sizes of Lzlib's buffers
-* Parameter Limits::            Min / max values for some parameters
-* Compression Functions::       Descriptions of the compression functions
-* Decompression Functions::     Descriptions of the decompression functions
-* Error Codes::                 Meaning of codes returned by functions
-* Error Messages::              Error messages corresponding to error codes
-* Data Format::                 Detailed format of the compressed data
+* Parameter limits::            Min / max values for some parameters
+* Compression functions::       Descriptions of the compression functions
+* Decompression functions::     Descriptions of the decompression functions
+* Error codes::                 Meaning of codes returned by functions
+* Error messages::              Error messages corresponding to error codes
+* Data format::                 Detailed format of the compressed data
 * Examples::                    A small tutorial with examples
 * Problems::                    Reporting bugs
-* Concept Index::               Index of concepts
+* Concept index::               Index of concepts
 @end menu
 
 @sp 1
@@ -64,6 +64,10 @@ Lzlib is a data compression library providing in-memory LZMA compression
 and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
 lzip format. Lzlib is written in C.
+
+The lzip file format is designed for long-term data archiving. It is
+clean, provides very safe 4 factor integrity checking, and is backed by
+the recovery capabilities of lziprecover.
 
 The functions and variables forming the interface of the compression
 library are declared in the file @samp{lzlib.h}. Usage examples of the
@@ -91,13 +95,22 @@ any signal handler. The decoder checks the consistency of the compressed
 data, so the library should never crash even in case of corrupted input.
 
 Lzlib implements a simplified version of the LZMA (Lempel-Ziv-Markov
-chain-Algorithm) algorithm. The original LZMA algorithm was designed by
-Igor Pavlov. For a description of the LZMA algorithm, see the Lzip
-manual.
+chain-Algorithm) algorithm. The high compression of LZMA comes from
+combining two basic, well-proven compression ideas: sliding dictionaries
+(LZ77/78) and markov models (the thing used by every compression
+algorithm that uses a range encoder or similar order-0 entropy coder as
+its last stage) with segregation of contexts according to what the bits
+are used for.
+
+The ideas embodied in lzlib are due to (at least) the following people:
+Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrey Markov (for
+the definition of Markov chains), G.N.N. Martin (for the definition of
+range encoding), Igor Pavlov (for putting all the above together in
+LZMA), and Julian Seward (for bzip2's CLI).
 
 
-@node Library Version
-@chapter Library Version
+@node Library version
+@chapter Library version
 @cindex library version
 
 @deftypefun {const char *} LZ_version ( void )
@@ -134,24 +147,24 @@ sizes:
 @itemize @bullet
 @item Input compression buffer. Written to by the
 @samp{LZ_compress_write} function. Its size is two times the dictionary
-size set with the @samp{LZ_compress_open} function or 64KiB, whichever
+size set with the @samp{LZ_compress_open} function or 64 KiB, whichever
 is larger.
 
 @item Output compression buffer. Read from by the
-@samp{LZ_compress_read} function. Its size is 64KiB.
+@samp{LZ_compress_read} function. Its size is 64 KiB.
 
 @item Input decompression buffer. Written to by the
-@samp{LZ_decompress_write} function. Its size is 64KiB.
+@samp{LZ_decompress_write} function. Its size is 64 KiB.
 
 @item Output decompression buffer. Read from by the
 @samp{LZ_decompress_read} function. Its size is the dictionary size set
-in the header of the member currently being decompressed or 64KiB,
+in the header of the member currently being decompressed or 64 KiB,
 whichever is larger.
 @end itemize
 
 
-@node Parameter Limits
-@chapter Parameter Limits
+@node Parameter limits
+@chapter Parameter limits
 @cindex parameter limits
 
 These functions provide minimum and maximum values for some parameters.
@@ -162,7 +175,7 @@ Returns the base 2 logarithm of the smallest valid dictionary size [12].
 @end deftypefun
 
 @deftypefun int LZ_min_dictionary_size ( void )
-Returns the smallest valid dictionary size [4KiB].
+Returns the smallest valid dictionary size [4 KiB].
 @end deftypefun
 
 @deftypefun int LZ_max_dictionary_bits ( void )
@@ -170,7 +183,7 @@ Returns the base 2 logarithm of the largest valid dictionary size [29].
 @end deftypefun
 
 @deftypefun int LZ_max_dictionary_size ( void )
-Returns the largest valid dictionary size [512MiB].
+Returns the largest valid dictionary size [512 MiB].
 @end deftypefun
 
 @deftypefun int LZ_min_match_len_limit ( void )
@@ -182,8 +195,8 @@ Returns the largest valid match length limit [273].
 @end deftypefun
 
 
-@node Compression Functions
-@chapter Compression Functions
+@node Compression functions
+@chapter Compression functions
 @cindex compression functions
 
 These are the functions used to compress data. In case of error, all of
@@ -204,7 +217,7 @@ does not return @samp{LZ_ok}, the returned pointer must not be used and
 should be freed with @samp{LZ_compress_close} to avoid memory leaks.
 
 @var{dictionary_size} sets the dictionary size to be used, in bytes.
-Valid values range from 4KiB to 512MiB. Note that dictionary sizes are
+Valid values range from 4 KiB to 512 MiB. Note that dictionary sizes are
 quantized. If the specified size does not match one of the valid sizes,
 it will be rounded upwards by adding up to (@var{dictionary_size} / 16)
 to it.
@@ -214,7 +227,7 @@ range from 5 to 273. Larger values usually give better compression
 ratios but longer compression times.
 
 @var{member_size} sets the member size limit in bytes. Minimum member
-size limit is 100kB. Small member size may degrade compression ratio, so
+size limit is 100 kB. Small member size may degrade compression ratio, so
 use it only when needed. To produce a single-member data stream, give
 @var{member_size} a value larger than the amount of data to be produced,
 for example INT64_MAX.
@@ -288,7 +301,7 @@ accept a @var{size} up to the returned number of bytes.
 
 
 @deftypefun {enum LZ_Errno} LZ_compress_errno ( struct LZ_Encoder * const @var{encoder} )
-Returns the current error code for @var{encoder} (@pxref{Error Codes}).
+Returns the current error code for @var{encoder} (@pxref{Error codes}).
 @end deftypefun
 
 
@@ -328,8 +341,8 @@ perhaps not yet read.
 @end deftypefun
 
 
-@node Decompression Functions
-@chapter Decompression Functions
+@node Decompression functions
+@chapter Decompression functions
 @cindex decompression functions
 
 These are the functions used to decompress data. In case of error, all
@@ -421,7 +434,7 @@ will accept a @var{size} up to the returned number of bytes.
 
 
 @deftypefun {enum LZ_Errno} LZ_decompress_errno ( struct LZ_Decoder * const @var{decoder} )
-Returns the current error code for @var{decoder} (@pxref{Error Codes}).
+Returns the current error code for @var{decoder} (@pxref{Error codes}).
 @end deftypefun
 
 
@@ -480,8 +493,8 @@ perhaps not yet read.
 @end deftypefun
 
 
-@node Error Codes
-@chapter Error Codes
+@node Error codes
+@chapter Error codes
 @cindex error codes
 
 Most library functions return -1 to indicate that they have failed. But
@@ -538,8 +551,8 @@ A bug was detected in the library. Please, report it (@pxref{Problems}).
 @end deftypevr
 
 
-@node Error Messages
-@chapter Error Messages
+@node Error messages
+@chapter Error messages
 @cindex error messages
 
 @deftypefun {const char *} LZ_strerror ( const enum LZ_Errno @var{lz_errno} )
@@ -553,8 +566,8 @@ The value of @var{lz_errno} normally comes from a call to
 @end deftypefun
 
 
-@node Data Format
-@chapter Data Format
+@node Data format
+@chapter Data format
 @cindex data format
 
 Perfection is reached, not when there is no longer anything to add, but
@@ -594,7 +607,8 @@ All multibyte values are stored in little endian order.
 
 @table @samp
 @item ID string
-A four byte string, identifying the lzip format, with the value "LZIP".
+A four byte string, identifying the lzip format, with the value "LZIP"
+(0x4C, 0x5A, 0x49, 0x50).
 
 @item VN (version number, 1 byte)
 Just in case something needs to be modified in the future. 1 for now.
@@ -607,12 +621,14 @@ wedges between 0 and 7. The size of a wedge is (base_size / 16).@*
 Bits 4-0 contain the base 2 logarithm of the base size (12 to 29).@*
 Bits 7-5 contain the number of wedges (0 to 7) to substract from the
 base size to obtain the dictionary size.@*
-Example: 0xD3 = (2^19 - 6 * 2^15) = (512KiB - 6 * 32KiB) = 320KiB@*
-Valid values for dictionary size range from 4KiB to 512MiB.
+Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB@*
+Valid values for dictionary size range from 4 KiB to 512 MiB.
 
 @item Lzma stream
 The lzma stream, finished by an end of stream marker. Uses default values
-for encoder properties. See the lzip manual for a full description.
+for encoder properties. See the lzip manual for a full description.@*
+Lzip only uses the LZMA marker @samp{2} ("End Of Stream" marker). Lzlib
+also uses the LZMA marker @samp{3} ("Sync Flush" marker).
 
 @item CRC32 (4 bytes)
 CRC of the uncompressed original data.
@@ -657,7 +673,6 @@ Example 1: Normal compression (@var{member_size} > total output).
 8) LZ_compress_close
 @end example
 
-
 @sp 1
 @noindent
 Example 2: Normal compression using LZ_compress_write_size.
@@ -671,7 +686,6 @@ Example 2: Normal compression using LZ_compress_write_size.
 6) go back to step 2 until LZ_compress_finished returns 1
 7) LZ_compress_close
 @end example
-
 
 @sp 1
 @noindent
@@ -687,7 +701,6 @@ Example 3: Decompression.
 7) go back to step 6 until LZ_decompress_finished returns 1
 8) LZ_decompress_close
 @end example
-
 
 @sp 1
 @noindent
@@ -705,7 +718,6 @@ Example 4: Decompression using LZ_decompress_write_size.
 7) LZ_decompress_close
 @end example
 
-
 @sp 1
 @noindent
 Example 5: Multi-member compression (@var{member_size} < total output).
@@ -722,7 +734,6 @@ Example 5: Multi-member compression (@var{member_size} < total output).
  9) go back to step 2
 10) LZ_compress_close
 @end example
-
 
 @sp 1
 @noindent
@@ -743,7 +754,6 @@ Example 6: Multi-member compression (user-restarted members).
 12) LZ_compress_close
 @end example
 
-
 @sp 1
 @noindent
 Example 7: Decompression with automatic removal of leading garbage.
@@ -758,7 +768,6 @@ Example 7: Decompression with automatic removal of leading garbage.
 7) go back to step 3 until LZ_decompress_finished returns 1
 8) LZ_decompress_close
 @end example
-
 
 @sp 1
 @noindent
@@ -778,7 +787,7 @@ next member in case of data error.
 
 
 @node Problems
-@chapter Reporting Bugs
+@chapter Reporting bugs
 @cindex bugs
 @cindex getting help
 
@@ -793,8 +802,8 @@ find by running @w{@samp{minilzip --version}} or in
 @samp{LZ_version_string} from @samp{lzlib.h}.
 
 
-@node Concept Index
-@unnumbered Concept Index
+@node Concept index
+@unnumbered Concept index
 
 @printindex cp
 

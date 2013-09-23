@@ -1,4 +1,4 @@
-/*  Lzcheck - A test program for the lzlib library
+/*  Lzcheck - Test program for the lzlib library
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
@@ -37,7 +37,7 @@ uint8_t out_buffer[buffer_size];
 int main( const int argc, const char * const argv[] )
   {
   const int dictionary_size = 1 << 20;
-  const int match_len_limit = 36;
+  const int match_len_limit = 16;
   const unsigned long long member_size = INT64_MAX;
   struct LZ_Encoder * encoder;
   struct LZ_Decoder * decoder;

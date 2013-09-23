@@ -1,7 +1,7 @@
 Requirements
 ------------
 You will need a C compiler.
-I use gcc 4.8.0 and 3.3.6, but the code should compile with any
+I use gcc 4.8.1 and 3.3.6, but the code should compile with any
 standards compliant compiler.
 Gcc is available at http://gcc.gnu.org.
 
@@ -10,9 +10,9 @@ Procedure
 ---------
 1. Unpack the archive if you have not done so already:
 
-	lzip -cd lzlib[version].tar.lz | tar -xf -
+	tar -xf lzlib[version].tar.lz
 or
-	gzip -cd lzlib[version].tar.gz | tar -xf -
+	lzip -cd lzlib[version].tar.lz | tar -xf -
 
 This creates the directory ./lzlib[version] containing the source from
 the main archive.

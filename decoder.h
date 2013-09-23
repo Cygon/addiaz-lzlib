@@ -1,4 +1,4 @@
-/*  Lzlib - A compression library for lzip files
+/*  Lzlib - Compression library for lzip files
     Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
@@ -33,8 +33,8 @@ struct Range_decoder
   unsigned long long member_position;
   uint32_t code;
   uint32_t range;
-  bool reload_pending;
   bool at_stream_end;
+  bool reload_pending;
   };
 
 static inline bool Rd_init( struct Range_decoder * const rdec )
@@ -43,8 +43,8 @@ static inline bool Rd_init( struct Range_decoder * const rdec )
   rdec->member_position = 0;
   rdec->code = 0;
   rdec->range = 0xFFFFFFFFU;
-  rdec->reload_pending = false;
   rdec->at_stream_end = false;
+  rdec->reload_pending = false;
   return true;
   }
 
@@ -311,7 +311,6 @@ struct LZ_decoder
   unsigned long long partial_data_pos;
   int dictionary_size;
   uint32_t crc;
-  int member_version;
   bool member_finished;
   bool verify_trailer_pending;
   unsigned rep0;		/* rep[0-3] latest four distances */
@@ -327,7 +326,7 @@ struct LZ_decoder
   Bit_model bm_rep1[states];
   Bit_model bm_rep2[states];
   Bit_model bm_len[states][pos_states];
-  Bit_model bm_dis_slot[max_dis_states][1<<dis_slot_bits];
+  Bit_model bm_dis_slot[dis_states][1<<dis_slot_bits];
   Bit_model bm_dis[modeled_distances-end_dis_model];
   Bit_model bm_align[dis_align_size];
 
@@ -391,7 +390,6 @@ static inline bool LZd_init( struct LZ_decoder * const decoder,
     return false;
   decoder->partial_data_pos = 0;
   decoder->crc = 0xFFFFFFFFU;
-  decoder->member_version = Fh_version( header );
   decoder->member_finished = false;
   decoder->verify_trailer_pending = false;
   decoder->rep0 = 0;
@@ -407,7 +405,7 @@ static inline bool LZd_init( struct LZ_decoder * const decoder,
   Bm_array_init( decoder->bm_rep1, states );
   Bm_array_init( decoder->bm_rep2, states );
   Bm_array_init( decoder->bm_len[0], states * pos_states );
-  Bm_array_init( decoder->bm_dis_slot[0], max_dis_states * (1 << dis_slot_bits) );
+  Bm_array_init( decoder->bm_dis_slot[0], dis_states * (1 << dis_slot_bits) );
   Bm_array_init( decoder->bm_dis, modeled_distances - end_dis_model );
   Bm_array_init( decoder->bm_align, dis_align_size );
 
