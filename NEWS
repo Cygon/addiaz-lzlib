@@ -1,8 +1,41 @@
-Changes in version 1.5:
+Changes in version 1.6:
 
-Decompression support for deprecated version 0 files has been removed.
+Compression ratio of option -9 has been slightly increased.
 
-A bug has been fixed that would make an instance of "struct LZ_Encoder"
-unresponsive if "LZ_compress_sync_flush" is called at the wrong moment.
+The configure script now accepts the option "--disable-static".
 
-Minor fixes have been made.
+Improved portability to BSD systems:
+
+    The configure script now accepts the option "--disable-ldconfig".
+
+    "make install" now ignores any errors from ldconfig.
+
+Minilzip now copies file dates, permissions, and ownership like "cp -p".
+(If the user ID or the group ID can't be duplicated, the file permission
+bits S_ISUID and S_ISGID are cleared).
+
+"lzlib.texinfo" has been renamed to "lzlib.texi".
+
+The license has been changed to "GPL version 2 or later with link
+exception".
+
+                                 -----
+
+Rationale for the license change.
+
+I have recently been shocked to know that it is apparently not legal to
+use lzlib in GPLv2 programs. Linking those programs with lzlib violates
+the GPLv2. But linking proprietary programs with lzlib is fine and legal!
+
+This problem is not caused by any fault in lzlib's link exception; the
+LGPLv3 has the same problem. See for example
+http://nmav.gnutls.org/2013/03/the-perils-of-lgplv3.html
+
+Of course it was never my intention to prevent GPLv2 programs from using
+lzlib. I'm sorry for any inconveniences my oversight may have caused to
+distributions, GPLv2 software projects, and users in general.
+
+I am also ashamed of having participated in this schism of the GPL
+community. The mere proliferation of different free software licenses is
+a burden in and of itself. From now on I'll license all my projects and
+contributions in a way compatible with the GPLv2.

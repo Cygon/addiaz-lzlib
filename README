@@ -5,14 +5,34 @@ and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
 lzip format. Lzlib is written in C.
 
-The lzip file format is designed for long-term data archiving. It is
-clean, provides very safe 4 factor integrity checking, and is backed by
-the recovery capabilities of lziprecover.
+The lzip file format is designed for long-term data archiving, taking
+into account both data integrity and decoder availability:
+
+   * The lzip format provides very safe integrity checking and some data
+     recovery means. The lziprecover program can repair bit-flip errors
+     (one of the most common forms of data corruption) in lzip files,
+     and provides data recovery capabilities, including error-checked
+     merging of damaged copies of a file.
+
+   * The lzip format is as simple as possible (but not simpler). The
+     lzip manual provides the code of a simple decompressor along with a
+     detailed explanation of how it works, so that with the only help of
+     the lzip manual it would be possible for a digital archaeologist to
+     extract the data from a lzip file long after quantum computers
+     eventually render LZMA obsolete.
+
+   * Additionally lzip is copylefted, which guarantees that it will
+     remain free forever.
+
+A nice feature of the lzip format is that a corrupt byte is easier to
+repair the nearer it is from the beginning of the file. Therefore, with
+the help of lziprecover, losing an entire archive just because of a
+corrupt byte near the beginning is a thing of the past.
 
 The functions and variables forming the interface of the compression
-library are declared in the file lzlib.h. Usage examples of the library
-are given in the files main.c and bbexample.c from the source
-distribution.
+library are declared in the file 'lzlib.h'. Usage examples of the
+library are given in the files 'main.c' and 'bbexample.c' from the
+source distribution.
 
 Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data has been processed by the
@@ -34,13 +54,23 @@ All the library functions are thread safe. The library does not install
 any signal handler. The decoder checks the consistency of the compressed
 data, so the library should never crash even in case of corrupted input.
 
-Lzlib implements a simplified version of the LZMA (Lempel-Ziv-Markov
-chain-Algorithm) algorithm. The high compression of LZMA comes from
-combining two basic, well-proven compression ideas: sliding dictionaries
-(LZ77/78) and markov models (the thing used by every compression
-algorithm that uses a range encoder or similar order-0 entropy coder as
-its last stage) with segregation of contexts according to what the bits
-are used for.
+There is no such thing as a "LZMA algorithm"; it is more like a "LZMA
+coding scheme". For example, the option '-0' of lzip uses the scheme in
+almost the simplest way possible; issuing the longest match it can find,
+or a literal byte if it can't find a match. Inversely, a much more
+elaborated way of finding coding sequences of minimum price than the one
+currently used by lzip could be developed, and the resulting sequence
+could also be coded using the LZMA coding scheme.
+
+Lzip currently implements two variants of the LZMA algorithm; fast (used
+by option -0) and normal (used by all other compression levels). Lzlib
+just implements the "normal" variant.
+
+The high compression of LZMA comes from combining two basic, well-proven
+compression ideas: sliding dictionaries (LZ77/78) and markov models (the
+thing used by every compression algorithm that uses a range encoder or
+similar order-0 entropy coder as its last stage) with segregation of
+contexts according to what the bits are used for.
 
 The ideas embodied in lzlib are due to (at least) the following people:
 Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrey Markov (for
@@ -49,7 +79,7 @@ range encoding), Igor Pavlov (for putting all the above together in
 LZMA), and Julian Seward (for bzip2's CLI).
 
 
-Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
 This file is free documentation: you have unlimited permission to copy,
 distribute and modify it.

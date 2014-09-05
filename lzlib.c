@@ -1,9 +1,9 @@
-/*  Lzlib - Compression library for lzip files
-    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+/*  Lzlib - Compression library for the lzip format
+    Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
+    the Free Software Foundation, either version 2 of the License, or
     (at your option) any later version.
 
     This library is distributed in the hope that it will be useful,
@@ -241,11 +241,11 @@ int LZ_compress_sync_flush( struct LZ_Encoder * const e )
   if( e->flush_pending <= 0 && !Mf_flushing_or_end( e->matchfinder ) )
     {
     e->flush_pending = 2;	/* 2 consecutive markers guarantee decoding */
-    Mf_set_flushing( e->matchfinder, true );
+    e->matchfinder->flushing = true;
     if( !LZe_encode_member( e->lz_encoder ) )
       { e->lz_errno = LZ_library_error; e->fatal = true; return -1; }
     while( e->flush_pending > 0 && LZe_sync_flush( e->lz_encoder ) )
-      { if( --e->flush_pending <= 0 ) Mf_set_flushing( e->matchfinder, false ); }
+      { if( --e->flush_pending <= 0 ) e->matchfinder->flushing = false; }
     }
   return 0;
   }
@@ -258,7 +258,7 @@ int LZ_compress_read( struct LZ_Encoder * const e,
   if( !LZe_encode_member( e->lz_encoder ) )
     { e->lz_errno = LZ_library_error; e->fatal = true; return -1; }
   while( e->flush_pending > 0 && LZe_sync_flush( e->lz_encoder ) )
-    { if( --e->flush_pending <= 0 ) Mf_set_flushing( e->matchfinder, false ); }
+    { if( --e->flush_pending <= 0 ) e->matchfinder->flushing = false; }
   return Re_read_data( &e->lz_encoder->renc, buffer, size );
   }
 
@@ -436,7 +436,8 @@ int LZ_decompress_read( struct LZ_Decoder * const d,
       return -1;
       }
     d->lz_decoder = (struct LZ_decoder *)malloc( sizeof (struct LZ_decoder) );
-    if( !d->lz_decoder || !LZd_init( d->lz_decoder, d->member_header, d->rdec ) )
+    if( !d->lz_decoder || !LZd_init( d->lz_decoder, d->rdec,
+                          Fh_get_dictionary_size( d->member_header ) ) )
       {					/* not enough free memory */
       if( d->lz_decoder )
         { LZd_free( d->lz_decoder ); free( d->lz_decoder ); d->lz_decoder = 0; }

@@ -6,19 +6,19 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 15 September 2013
-@set VERSION 1.5
+@set UPDATED 27 August 2014
+@set VERSION 1.6
 
 @dircategory Data Compression
 @direntry
-* Lzlib: (lzlib).               Compression library for lzip files
+* Lzlib: (lzlib).               Compression library for the lzip format
 @end direntry
 
 
 @ifnothtml
 @titlepage
 @title Lzlib
-@subtitle Compression library for lzip files
+@subtitle Compression library for the lzip format
 @subtitle for Lzlib version @value{VERSION}, @value{UPDATED}
 @author by Antonio Diaz Diaz
 
@@ -50,7 +50,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+Copyright @copyright{} 2009-2014 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -65,9 +65,34 @@ and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
 lzip format. Lzlib is written in C.
 
-The lzip file format is designed for long-term data archiving. It is
-clean, provides very safe 4 factor integrity checking, and is backed by
-the recovery capabilities of lziprecover.
+The lzip file format is designed for long-term data archiving, taking
+into account both data integrity and decoder availability:
+
+@itemize @bullet
+@item
+The lzip format provides very safe integrity checking and some data
+recovery means. The lziprecover program can repair bit-flip errors (one
+of the most common forms of data corruption) in lzip files, and provides
+data recovery capabilities, including error-checked merging of damaged
+copies of a file.
+
+@item
+The lzip format is as simple as possible (but not simpler). The lzip
+manual provides the code of a simple decompressor along with a detailed
+explanation of how it works, so that with the only help of the lzip
+manual it would be possible for a digital archaeologist to extract the
+data from a lzip file long after quantum computers eventually render
+LZMA obsolete.
+
+@item
+Additionally lzip is copylefted, which guarantees that it will remain
+free forever.
+@end itemize
+
+A nice feature of the lzip format is that a corrupt byte is easier to
+repair the nearer it is from the beginning of the file. Therefore, with
+the help of lziprecover, losing an entire archive just because of a
+corrupt byte near the beginning is a thing of the past.
 
 The functions and variables forming the interface of the compression
 library are declared in the file @samp{lzlib.h}. Usage examples of the
@@ -94,13 +119,23 @@ All the library functions are thread safe. The library does not install
 any signal handler. The decoder checks the consistency of the compressed
 data, so the library should never crash even in case of corrupted input.
 
-Lzlib implements a simplified version of the LZMA (Lempel-Ziv-Markov
-chain-Algorithm) algorithm. The high compression of LZMA comes from
-combining two basic, well-proven compression ideas: sliding dictionaries
-(LZ77/78) and markov models (the thing used by every compression
-algorithm that uses a range encoder or similar order-0 entropy coder as
-its last stage) with segregation of contexts according to what the bits
-are used for.
+There is no such thing as a "LZMA algorithm"; it is more like a "LZMA
+coding scheme". For example, the option '-0' of lzip uses the scheme in
+almost the simplest way possible; issuing the longest match it can find,
+or a literal byte if it can't find a match. Inversely, a much more
+elaborated way of finding coding sequences of minimum price than the one
+currently used by lzip could be developed, and the resulting sequence
+could also be coded using the LZMA coding scheme.
+
+Lzip currently implements two variants of the LZMA algorithm; fast (used
+by option -0) and normal (used by all other compression levels). Lzlib
+just implements the "normal" variant.
+
+The high compression of LZMA comes from combining two basic, well-proven
+compression ideas: sliding dictionaries (LZ77/78) and markov models (the
+thing used by every compression algorithm that uses a range encoder or
+similar order-0 entropy coder as its last stage) with segregation of
+contexts according to what the bits are used for.
 
 The ideas embodied in lzlib are due to (at least) the following people:
 Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrey Markov (for
@@ -139,7 +174,7 @@ if( LZ_version()[0] != LZ_version_string[0] )
 Lzlib internal functions need access to a memory chunk at least as large
 as the dictionary size (sliding window). For efficiency reasons, the
 input buffer for compression is twice as large as the dictionary size.
-Finally, for security reasons, lzlib uses two more internal buffers.
+Finally, for safety reasons, lzlib uses two more internal buffers.
 
 These are the four buffers used by lzlib, and their guaranteed minimum
 sizes:
@@ -261,7 +296,11 @@ indicates that the current member has been fully read (with the
 
 @deftypefun int LZ_compress_sync_flush ( struct LZ_Encoder * const @var{encoder} )
 Use this function to make available to @samp{LZ_compress_read} all the
-data already written with the @samp{LZ_compress_write} function.
+data already written with the @samp{LZ_compress_write} function. First
+call @samp{LZ_compress_read} until it returns 0. Then call
+@samp{LZ_compress_sync_flush}. Finally, call @samp{LZ_compress_read}
+again to read the remaining data.
+
 Repeated use of @samp{LZ_compress_sync_flush} may degrade compression
 ratio, so use it only when needed.
 @end deftypefun
@@ -625,8 +664,9 @@ Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB@*
 Valid values for dictionary size range from 4 KiB to 512 MiB.
 
 @item Lzma stream
-The lzma stream, finished by an end of stream marker. Uses default values
-for encoder properties. See the lzip manual for a full description.@*
+The lzma stream, finished by an end of stream marker. Uses default
+values for encoder properties. See the lzip manual for a full
+description.@*
 Lzip only uses the LZMA marker @samp{2} ("End Of Stream" marker). Lzlib
 also uses the LZMA marker @samp{3} ("Sync Flush" marker).
 

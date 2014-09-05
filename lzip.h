@@ -1,9 +1,9 @@
-/*  Lzlib - Compression library for lzip files
-    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+/*  Lzlib - Compression library for the lzip format
+    Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
+    the Free Software Foundation, either version 2 of the License, or
     (at your option) any later version.
 
     This library is distributed in the hope that it will be useful,
@@ -56,7 +56,7 @@ static inline State St_set_short_rep( const State st )
 
 enum {
   min_dictionary_bits = 12,
-  min_dictionary_size = 1 << min_dictionary_bits,
+  min_dictionary_size = 1 << min_dictionary_bits,	/* >= modeled_distances */
   max_dictionary_bits = 29,
   max_dictionary_size = 1 << max_dictionary_bits,
   literal_context_bits = 3,
@@ -64,6 +64,7 @@ enum {
   pos_states = 1 << pos_state_bits,
   pos_state_mask = pos_states - 1,
 
+  len_states = 4,
   dis_slot_bits = 6,
   start_dis_model = 4,
   end_dis_model = 14,
@@ -81,12 +82,10 @@ enum {
 
   min_match_len = 2,					/* must be 2 */
   max_match_len = min_match_len + max_len_symbols - 1,	/* 273 */
-  min_match_len_limit = 5,
+  min_match_len_limit = 5 };
 
-  dis_states = 4 };
-
-static inline int get_dis_state( const int len )
-  { return min( len - min_match_len, dis_states - 1 ); }
+static inline int get_len_state( const int len )
+  { return min( len - min_match_len, len_states - 1 ); }
 
 static inline int get_lit_state( const uint8_t prev_byte )
   { return ( prev_byte >> ( 8 - literal_context_bits ) ); }
@@ -175,7 +174,8 @@ static inline void CRC32_update_byte( uint32_t * const crc, const uint8_t byte )
   { *crc = crc32[(*crc^byte)&0xFF] ^ ( *crc >> 8 ); }
 
 static inline void CRC32_update_buf( uint32_t * const crc,
-                                     const uint8_t * const buffer, const int size )
+                                     const uint8_t * const buffer,
+                                     const int size )
   {
   int i;
   for( i = 0; i < size; ++i )
@@ -255,41 +255,29 @@ enum { Ft_size = 20 };
 static inline unsigned Ft_get_data_crc( const File_trailer data )
   {
   unsigned tmp = 0;
-  int i;
-  for( i = 3; i >= 0; --i ) { tmp <<= 8; tmp += data[i]; }
+  int i; for( i = 3; i >= 0; --i ) { tmp <<= 8; tmp += data[i]; }
   return tmp;
   }
 
 static inline void Ft_set_data_crc( File_trailer data, unsigned crc )
-  {
-  int i;
-  for( i = 0; i <= 3; ++i ) { data[i] = (uint8_t)crc; crc >>= 8; }
-  }
+  { int i; for( i = 0; i <= 3; ++i ) { data[i] = (uint8_t)crc; crc >>= 8; } }
 
 static inline unsigned long long Ft_get_data_size( const File_trailer data )
   {
   unsigned long long tmp = 0;
-  int i;
-  for( i = 11; i >= 4; --i ) { tmp <<= 8; tmp += data[i]; }
+  int i; for( i = 11; i >= 4; --i ) { tmp <<= 8; tmp += data[i]; }
   return tmp;
   }
 
 static inline void Ft_set_data_size( File_trailer data, unsigned long long sz )
-  {
-  int i;
-  for( i = 4; i <= 11; ++i ) { data[i] = (uint8_t)sz; sz >>= 8; }
-  }
+  { int i; for( i = 4; i <= 11; ++i ) { data[i] = (uint8_t)sz; sz >>= 8; } }
 
 static inline unsigned long long Ft_get_member_size( const File_trailer data )
   {
   unsigned long long tmp = 0;
-  int i;
-  for( i = 19; i >= 12; --i ) { tmp <<= 8; tmp += data[i]; }
+  int i; for( i = 19; i >= 12; --i ) { tmp <<= 8; tmp += data[i]; }
   return tmp;
   }
 
 static inline void Ft_set_member_size( File_trailer data, unsigned long long sz )
-  {
-  int i;
-  for( i = 12; i <= 19; ++i ) { data[i] = (uint8_t)sz; sz >>= 8; }
-  }
+  { int i; for( i = 12; i <= 19; ++i ) { data[i] = (uint8_t)sz; sz >>= 8; } }

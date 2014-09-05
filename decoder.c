@@ -1,9 +1,9 @@
-/*  Lzlib - Compression library for lzip files
-    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+/*  Lzlib - Compression library for the lzip format
+    Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
+    the Free Software Foundation, either version 2 of the License, or
     (at your option) any later version.
 
     This library is distributed in the hope that it will be useful,
@@ -25,123 +25,120 @@
     Public License.
 */
 
-static bool LZd_verify_trailer( struct LZ_decoder * const decoder )
+static bool LZd_verify_trailer( struct LZ_decoder * const d )
   {
   File_trailer trailer;
-  const unsigned long long member_size =
-    decoder->rdec->member_position + Ft_size;
+  const unsigned long long member_size = d->rdec->member_position + Ft_size;
 
-  int size = Rd_read_data( decoder->rdec, trailer, Ft_size );
+  int size = Rd_read_data( d->rdec, trailer, Ft_size );
   if( size < Ft_size )
     return false;
 
-  return ( decoder->rdec->code == 0 &&
-           Ft_get_data_crc( trailer ) == LZd_crc( decoder ) &&
-           Ft_get_data_size( trailer ) == LZd_data_position( decoder ) &&
+  return ( d->rdec->code == 0 &&
+           Ft_get_data_crc( trailer ) == LZd_crc( d ) &&
+           Ft_get_data_size( trailer ) == LZd_data_position( d ) &&
            Ft_get_member_size( trailer ) == member_size );
   }
 
 
 /* Return value: 0 = OK, 1 = decoder error, 2 = unexpected EOF,
                  3 = trailer error, 4 = unknown marker found. */
-static int LZd_decode_member( struct LZ_decoder * const decoder )
+static int LZd_decode_member( struct LZ_decoder * const d )
   {
-  struct Range_decoder * const rdec = decoder->rdec;
-  State * const state = &decoder->state;
+  struct Range_decoder * const rdec = d->rdec;
+  State * const state = &d->state;
 
-  if( decoder->member_finished ) return 0;
+  if( d->member_finished ) return 0;
   if( !Rd_try_reload( rdec, false ) ) return 0;
-  if( decoder->verify_trailer_pending )
+  if( d->verify_trailer_pending )
     {
     if( Rd_available_bytes( rdec ) < Ft_size && !rdec->at_stream_end )
       return 0;
-    decoder->verify_trailer_pending = false;
-    decoder->member_finished = true;
-    if( LZd_verify_trailer( decoder ) ) return 0; else return 3;
+    d->verify_trailer_pending = false;
+    d->member_finished = true;
+    if( LZd_verify_trailer( d ) ) return 0; else return 3;
     }
 
   while( !Rd_finished( rdec ) )
     {
-    const int pos_state = LZd_data_position( decoder ) & pos_state_mask;
-    if( !Rd_enough_available_bytes( rdec ) ||
-        !LZd_enough_free_bytes( decoder ) )
+    const int pos_state = LZd_data_position( d ) & pos_state_mask;
+    if( !Rd_enough_available_bytes( rdec ) || !LZd_enough_free_bytes( d ) )
       return 0;
-    if( Rd_decode_bit( rdec, &decoder->bm_match[*state][pos_state] ) == 0 )	/* 1st bit */
+    if( Rd_decode_bit( rdec, &d->bm_match[*state][pos_state] ) == 0 )	/* 1st bit */
       {
-      const uint8_t prev_byte = LZd_get_prev_byte( decoder );
+      const uint8_t prev_byte = LZd_get_prev_byte( d );
       if( St_is_char( *state ) )
         {
         *state -= ( *state < 4 ) ? *state : 3;
-        LZd_put_byte( decoder, Rd_decode_tree( rdec,
-                      decoder->bm_literal[get_lit_state(prev_byte)], 8 ) );
+        LZd_put_byte( d, Rd_decode_tree( rdec,
+                      d->bm_literal[get_lit_state(prev_byte)], 8 ) );
         }
       else
         {
         *state -= ( *state < 10 ) ? 3 : 6;
-        LZd_put_byte( decoder, Rd_decode_matched( rdec,
-                      decoder->bm_literal[get_lit_state(prev_byte)],
-                      LZd_get_byte( decoder, decoder->rep0 ) ) );
+        LZd_put_byte( d, Rd_decode_matched( rdec,
+                      d->bm_literal[get_lit_state(prev_byte)],
+                      LZd_get_byte( d, d->rep0 ) ) );
         }
       }
     else
       {
       int len;
-      if( Rd_decode_bit( rdec, &decoder->bm_rep[*state] ) == 1 )	/* 2nd bit */
+      if( Rd_decode_bit( rdec, &d->bm_rep[*state] ) != 0 )	/* 2nd bit */
         {
-        if( Rd_decode_bit( rdec, &decoder->bm_rep0[*state] ) == 1 )	/* 3rd bit */
+        if( Rd_decode_bit( rdec, &d->bm_rep0[*state] ) != 0 )	/* 3rd bit */
           {
           unsigned distance;
-          if( Rd_decode_bit( rdec, &decoder->bm_rep1[*state] ) == 0 )	/* 4th bit */
-            distance = decoder->rep1;
+          if( Rd_decode_bit( rdec, &d->bm_rep1[*state] ) == 0 )	/* 4th bit */
+            distance = d->rep1;
           else
             {
-            if( Rd_decode_bit( rdec, &decoder->bm_rep2[*state] ) == 0 )	/* 5th bit */
-              distance = decoder->rep2;
+            if( Rd_decode_bit( rdec, &d->bm_rep2[*state] ) == 0 )	/* 5th bit */
+              distance = d->rep2;
             else
-              { distance = decoder->rep3; decoder->rep3 = decoder->rep2; }
-            decoder->rep2 = decoder->rep1;
+              { distance = d->rep3; d->rep3 = d->rep2; }
+            d->rep2 = d->rep1;
             }
-          decoder->rep1 = decoder->rep0;
-          decoder->rep0 = distance;
+          d->rep1 = d->rep0;
+          d->rep0 = distance;
           }
         else
           {
-          if( Rd_decode_bit( rdec, &decoder->bm_len[*state][pos_state] ) == 0 )	/* 4th bit */
+          if( Rd_decode_bit( rdec, &d->bm_len[*state][pos_state] ) == 0 )	/* 4th bit */
             { *state = St_set_short_rep( *state );
-              LZd_put_byte( decoder, LZd_get_byte( decoder, decoder->rep0 ) ); continue; }
+              LZd_put_byte( d, LZd_get_byte( d, d->rep0 ) ); continue; }
           }
         *state = St_set_rep( *state );
-        len = min_match_len + Rd_decode_len( rdec, &decoder->rep_len_model, pos_state );
+        len = min_match_len + Rd_decode_len( rdec, &d->rep_len_model, pos_state );
         }
       else
         {
         int dis_slot;
-        const unsigned rep0_saved = decoder->rep0;
-        len = min_match_len + Rd_decode_len( rdec, &decoder->match_len_model, pos_state );
-        dis_slot = Rd_decode_tree6( rdec, decoder->bm_dis_slot[get_dis_state(len)] );
-        if( dis_slot < start_dis_model ) decoder->rep0 = dis_slot;
+        const unsigned rep0_saved = d->rep0;
+        len = min_match_len + Rd_decode_len( rdec, &d->match_len_model, pos_state );
+        dis_slot = Rd_decode_tree6( rdec, d->bm_dis_slot[get_len_state(len)] );
+        if( dis_slot < start_dis_model ) d->rep0 = dis_slot;
         else
           {
           const int direct_bits = ( dis_slot >> 1 ) - 1;
-          decoder->rep0 = ( 2 | ( dis_slot & 1 ) ) << direct_bits;
+          d->rep0 = ( 2 | ( dis_slot & 1 ) ) << direct_bits;
           if( dis_slot < end_dis_model )
-            decoder->rep0 += Rd_decode_tree_reversed( rdec,
-                             decoder->bm_dis + decoder->rep0 - dis_slot - 1,
-                             direct_bits );
+            d->rep0 += Rd_decode_tree_reversed( rdec,
+                       d->bm_dis + d->rep0 - dis_slot - 1, direct_bits );
           else
             {
-            decoder->rep0 += Rd_decode( rdec, direct_bits - dis_align_bits ) << dis_align_bits;
-            decoder->rep0 += Rd_decode_tree_reversed4( rdec, decoder->bm_align );
-            if( decoder->rep0 == 0xFFFFFFFFU )		/* Marker found */
+            d->rep0 += Rd_decode( rdec, direct_bits - dis_align_bits ) << dis_align_bits;
+            d->rep0 += Rd_decode_tree_reversed4( rdec, d->bm_align );
+            if( d->rep0 == 0xFFFFFFFFU )		/* Marker found */
               {
-              decoder->rep0 = rep0_saved;
+              d->rep0 = rep0_saved;
               Rd_normalize( rdec );
               if( len == min_match_len )	/* End Of Stream marker */
                 {
                 if( Rd_available_bytes( rdec ) < Ft_size && !rdec->at_stream_end )
-                  { decoder->verify_trailer_pending = true; return 0; }
-                decoder->member_finished = true;
-                if( LZd_verify_trailer( decoder ) ) return 0; else return 3;
+                  { d->verify_trailer_pending = true; return 0; }
+                d->member_finished = true;
+                if( LZd_verify_trailer( d ) ) return 0; else return 3;
                 }
               if( len == min_match_len + 1 )	/* Sync Flush marker */
                 {
@@ -152,15 +149,12 @@ static int LZd_decode_member( struct LZ_decoder * const decoder )
               }
             }
           }
-        decoder->rep3 = decoder->rep2;
-        decoder->rep2 = decoder->rep1; decoder->rep1 = rep0_saved;
+        d->rep3 = d->rep2; d->rep2 = d->rep1; d->rep1 = rep0_saved;
         *state = St_set_match( *state );
-        if( decoder->rep0 >= (unsigned)decoder->dictionary_size ||
-            ( decoder->rep0 >= (unsigned)decoder->cb.put &&
-              !decoder->partial_data_pos ) )
+        if( d->rep0 >= d->dictionary_size || d->rep0 >= LZd_data_position( d ) )
           return 1;
         }
-      LZd_copy_block( decoder, decoder->rep0, len );
+      LZd_copy_block( d, d->rep0, len );
       }
     }
   return 2;

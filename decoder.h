@@ -1,9 +1,9 @@
-/*  Lzlib - Compression library for lzip files
-    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+/*  Lzlib - Compression library for the lzip format
+    Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
+    the Free Software Foundation, either version 2 of the License, or
     (at your option) any later version.
 
     This library is distributed in the hope that it will be useful,
@@ -159,6 +159,7 @@ static bool Rd_try_reload( struct Range_decoder * const rdec, const bool force )
     for( i = 0; i < 5; ++i )
       rdec->code = (rdec->code << 8) | Rd_get_byte( rdec );
     rdec->range = 0xFFFFFFFFU;
+    rdec->code &= rdec->range;	/* make sure that first byte is discarded */
     }
   return !rdec->reload_pending;
   }
@@ -233,7 +234,7 @@ static inline int Rd_decode_tree6( struct Range_decoder * const rdec,
   symbol = ( symbol << 1 ) | Rd_decode_bit( rdec, &bm[symbol] );
   symbol = ( symbol << 1 ) | Rd_decode_bit( rdec, &bm[symbol] );
   symbol = ( symbol << 1 ) | Rd_decode_bit( rdec, &bm[symbol] );
-  return symbol - (1 << 6);
+  return symbol & 0x3F;
   }
 
 static inline int Rd_decode_tree_reversed( struct Range_decoder * const rdec,
@@ -255,9 +256,9 @@ static inline int Rd_decode_tree_reversed4( struct Range_decoder * const rdec,
                                             Bit_model bm[] )
   {
   int model = 1;
-  int symbol = 0;
-  int bit = Rd_decode_bit( rdec, &bm[model] );
-  model = (model << 1) + bit; symbol |= bit;
+  int symbol = Rd_decode_bit( rdec, &bm[model] );
+  int bit;
+  model = (model << 1) + symbol;
   bit = Rd_decode_bit( rdec, &bm[model] );
   model = (model << 1) + bit; symbol |= (bit << 1);
   bit = Rd_decode_bit( rdec, &bm[model] );
@@ -271,8 +272,7 @@ static inline int Rd_decode_matched( struct Range_decoder * const rdec,
   {
   Bit_model * const bm1 = bm + 0x100;
   int symbol = 1;
-  int i;
-  for( i = 7; i >= 0; --i )
+  while( symbol < 0x100 )
     {
     int match_bit, bit;
     match_byte <<= 1;
@@ -286,7 +286,7 @@ static inline int Rd_decode_matched( struct Range_decoder * const rdec,
       break;
       }
     }
-  return symbol - 0x100;
+  return symbol & 0xFF;
   }
 
 static inline int Rd_decode_len( struct Range_decoder * const rdec,
@@ -309,7 +309,8 @@ struct LZ_decoder
   {
   struct Circular_buffer cb;
   unsigned long long partial_data_pos;
-  int dictionary_size;
+  struct Range_decoder * rdec;
+  unsigned dictionary_size;
   uint32_t crc;
   bool member_finished;
   bool verify_trailer_pending;
@@ -326,105 +327,102 @@ struct LZ_decoder
   Bit_model bm_rep1[states];
   Bit_model bm_rep2[states];
   Bit_model bm_len[states][pos_states];
-  Bit_model bm_dis_slot[dis_states][1<<dis_slot_bits];
+  Bit_model bm_dis_slot[len_states][1<<dis_slot_bits];
   Bit_model bm_dis[modeled_distances-end_dis_model];
   Bit_model bm_align[dis_align_size];
 
-  struct Range_decoder * rdec;
   struct Len_model match_len_model;
   struct Len_model rep_len_model;
   };
 
-static inline bool LZd_enough_free_bytes( const struct LZ_decoder * const decoder )
-  { return Cb_free_bytes( &decoder->cb ) >= lzd_min_free_bytes; }
+static inline bool LZd_enough_free_bytes( const struct LZ_decoder * const d )
+  { return Cb_free_bytes( &d->cb ) >= lzd_min_free_bytes; }
 
-static inline uint8_t LZd_get_prev_byte( const struct LZ_decoder * const decoder )
+static inline uint8_t LZd_get_prev_byte( const struct LZ_decoder * const d )
   {
-  const int i =
-    ( ( decoder->cb.put > 0 ) ? decoder->cb.put : decoder->cb.buffer_size ) - 1;
-  return decoder->cb.buffer[i];
+  const int i = ( ( d->cb.put > 0 ) ? d->cb.put : d->cb.buffer_size ) - 1;
+  return d->cb.buffer[i];
   }
 
-static inline uint8_t LZd_get_byte( const struct LZ_decoder * const decoder,
+static inline uint8_t LZd_get_byte( const struct LZ_decoder * const d,
                                     const int distance )
   {
-  int i = decoder->cb.put - distance - 1;
-  if( i < 0 ) i += decoder->cb.buffer_size;
-  return decoder->cb.buffer[i];
+  int i = d->cb.put - distance - 1;
+  if( i < 0 ) i += d->cb.buffer_size;
+  return d->cb.buffer[i];
   }
 
-static inline void LZd_put_byte( struct LZ_decoder * const decoder,
-                                 const uint8_t b )
+static inline void LZd_put_byte( struct LZ_decoder * const d, const uint8_t b )
   {
-  CRC32_update_byte( &decoder->crc, b );
-  decoder->cb.buffer[decoder->cb.put] = b;
-  if( ++decoder->cb.put >= decoder->cb.buffer_size )
-    { decoder->partial_data_pos += decoder->cb.put; decoder->cb.put = 0; }
+  CRC32_update_byte( &d->crc, b );
+  d->cb.buffer[d->cb.put] = b;
+  if( ++d->cb.put >= d->cb.buffer_size )
+    { d->partial_data_pos += d->cb.put; d->cb.put = 0; }
   }
 
-static inline void LZd_copy_block( struct LZ_decoder * const decoder,
+static inline void LZd_copy_block( struct LZ_decoder * const d,
                                    const int distance, int len )
   {
-  int i = decoder->cb.put - distance - 1;
-  if( i < 0 ) i += decoder->cb.buffer_size;
-  if( len < decoder->cb.buffer_size - max( decoder->cb.put, i ) &&
-      len <= abs( decoder->cb.put - i ) )	/* no wrap, no overlap */
+  int i = d->cb.put - distance - 1;
+  if( i < 0 ) i += d->cb.buffer_size;
+  if( len < d->cb.buffer_size - max( d->cb.put, i ) &&
+      len <= abs( d->cb.put - i ) )		/* no wrap, no overlap */
     {
-    CRC32_update_buf( &decoder->crc, decoder->cb.buffer + i, len );
-    memcpy( decoder->cb.buffer + decoder->cb.put, decoder->cb.buffer + i, len );
-    decoder->cb.put += len;
+    CRC32_update_buf( &d->crc, d->cb.buffer + i, len );
+    memcpy( d->cb.buffer + d->cb.put, d->cb.buffer + i, len );
+    d->cb.put += len;
     }
   else for( ; len > 0; --len )
     {
-    LZd_put_byte( decoder, decoder->cb.buffer[i] );
-    if( ++i >= decoder->cb.buffer_size ) i = 0;
+    LZd_put_byte( d, d->cb.buffer[i] );
+    if( ++i >= d->cb.buffer_size ) i = 0;
     }
   }
 
-static inline bool LZd_init( struct LZ_decoder * const decoder,
-                             const File_header header,
-                             struct Range_decoder * const rde )
+static inline bool LZd_init( struct LZ_decoder * const d,
+                             struct Range_decoder * const rde,
+                             const int dict_size )
   {
-  decoder->dictionary_size = Fh_get_dictionary_size( header );
-  if( !Cb_init( &decoder->cb, max( 65536, decoder->dictionary_size ) + lzd_min_free_bytes ) )
+  if( !Cb_init( &d->cb, max( 65536, dict_size ) + lzd_min_free_bytes ) )
     return false;
-  decoder->partial_data_pos = 0;
-  decoder->crc = 0xFFFFFFFFU;
-  decoder->member_finished = false;
-  decoder->verify_trailer_pending = false;
-  decoder->rep0 = 0;
-  decoder->rep1 = 0;
-  decoder->rep2 = 0;
-  decoder->rep3 = 0;
-  decoder->state = 0;
+  d->partial_data_pos = 0;
+  d->rdec = rde;
+  d->dictionary_size = dict_size;
+  d->crc = 0xFFFFFFFFU;
+  d->member_finished = false;
+  d->verify_trailer_pending = false;
+  d->rep0 = 0;
+  d->rep1 = 0;
+  d->rep2 = 0;
+  d->rep3 = 0;
+  d->state = 0;
 
-  Bm_array_init( decoder->bm_literal[0], (1 << literal_context_bits) * 0x300 );
-  Bm_array_init( decoder->bm_match[0], states * pos_states );
-  Bm_array_init( decoder->bm_rep, states );
-  Bm_array_init( decoder->bm_rep0, states );
-  Bm_array_init( decoder->bm_rep1, states );
-  Bm_array_init( decoder->bm_rep2, states );
-  Bm_array_init( decoder->bm_len[0], states * pos_states );
-  Bm_array_init( decoder->bm_dis_slot[0], dis_states * (1 << dis_slot_bits) );
-  Bm_array_init( decoder->bm_dis, modeled_distances - end_dis_model );
-  Bm_array_init( decoder->bm_align, dis_align_size );
+  Bm_array_init( d->bm_literal[0], (1 << literal_context_bits) * 0x300 );
+  Bm_array_init( d->bm_match[0], states * pos_states );
+  Bm_array_init( d->bm_rep, states );
+  Bm_array_init( d->bm_rep0, states );
+  Bm_array_init( d->bm_rep1, states );
+  Bm_array_init( d->bm_rep2, states );
+  Bm_array_init( d->bm_len[0], states * pos_states );
+  Bm_array_init( d->bm_dis_slot[0], len_states * (1 << dis_slot_bits) );
+  Bm_array_init( d->bm_dis, modeled_distances - end_dis_model );
+  Bm_array_init( d->bm_align, dis_align_size );
 
-  decoder->rdec = rde;
-  Lm_init( &decoder->match_len_model );
-  Lm_init( &decoder->rep_len_model );
-  decoder->cb.buffer[decoder->cb.buffer_size-1] = 0; /* prev_byte of first_byte */
+  Lm_init( &d->match_len_model );
+  Lm_init( &d->rep_len_model );
+  d->cb.buffer[d->cb.buffer_size-1] = 0;	/* prev_byte of first byte */
   return true;
   }
 
-static inline void LZd_free( struct LZ_decoder * const decoder )
-  { Cb_free( &decoder->cb ); }
+static inline void LZd_free( struct LZ_decoder * const d )
+  { Cb_free( &d->cb ); }
 
-static inline bool LZd_member_finished( const struct LZ_decoder * const decoder )
-  { return ( decoder->member_finished && !Cb_used_bytes( &decoder->cb ) ); }
+static inline bool LZd_member_finished( const struct LZ_decoder * const d )
+  { return ( d->member_finished && !Cb_used_bytes( &d->cb ) ); }
 
-static inline unsigned LZd_crc( const struct LZ_decoder * const decoder )
-  { return decoder->crc ^ 0xFFFFFFFFU; }
+static inline unsigned LZd_crc( const struct LZ_decoder * const d )
+  { return d->crc ^ 0xFFFFFFFFU; }
 
 static inline unsigned long long
-LZd_data_position( const struct LZ_decoder * const decoder )
-  { return decoder->partial_data_pos + decoder->cb.put; }
+LZd_data_position( const struct LZ_decoder * const d )
+  { return d->partial_data_pos + d->cb.put; }

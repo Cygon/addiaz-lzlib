@@ -1,5 +1,5 @@
 /*  Buff to buff example - Test program for the lzlib library
-    Copyright (C) 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+    Copyright (C) 2010-2014 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
@@ -34,7 +34,7 @@ uint8_t * bbcompress( const uint8_t * const data, const int size,
   struct LZ_Encoder * encoder;
   uint8_t * new_data;
   const int match_len_limit = 36;
-  const unsigned long long member_size = INT64_MAX;
+  const unsigned long long member_size = 0x7FFFFFFFFFFFFFFFULL;	/* INT64_MAX */
   int delta_size, new_data_size;
   int new_pos = 0;
   int written = 0;

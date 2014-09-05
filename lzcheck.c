@@ -1,5 +1,5 @@
 /*  Lzcheck - Test program for the lzlib library
-    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+    Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
@@ -38,7 +38,7 @@ int main( const int argc, const char * const argv[] )
   {
   const int dictionary_size = 1 << 20;
   const int match_len_limit = 16;
-  const unsigned long long member_size = INT64_MAX;
+  const unsigned long long member_size = 0x7FFFFFFFFFFFFFFFULL;	/* INT64_MAX */
   struct LZ_Encoder * encoder;
   struct LZ_Decoder * decoder;
   FILE * file;
@@ -111,7 +111,7 @@ int main( const int argc, const char * const argv[] )
 
       if( out_size != in_size || memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d\n",
+        fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d.\n",
                  l, in_size, out_size );
         for( i = 0; i < in_size; ++i )
           fputc( in_buffer[l+i], stderr );
@@ -183,7 +183,7 @@ int main( const int argc, const char * const argv[] )
 
       if( out_size != in_size || memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d\n",
+        fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d.\n",
                  l, in_size, out_size );
         for( i = 0; i < in_size; ++i )
           fputc( in_buffer[l+i], stderr );

@@ -1,9 +1,9 @@
-/*  Lzlib - Compression library for lzip files
-    Copyright (C) 2009, 2010, 2011, 2012, 2013 Antonio Diaz Diaz.
+/*  Lzlib - Compression library for the lzip format
+    Copyright (C) 2009-2014 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
+    the Free Software Foundation, either version 2 of the License, or
     (at your option) any later version.
 
     This library is distributed in the hope that it will be useful,
@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-static const char * const LZ_version_string = "1.5";
+static const char * const LZ_version_string = "1.6";
 
 enum LZ_Errno { LZ_ok = 0,         LZ_bad_argument, LZ_mem_error,
                 LZ_sequence_error, LZ_header_error, LZ_unexpected_eof,
