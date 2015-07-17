@@ -1,41 +1,16 @@
-Changes in version 1.6:
+Changes in version 1.7:
 
-Compression ratio of option -9 has been slightly increased.
+The fast encoder, which produces a compression speed and ratio
+comparable to those of gzip, has been ported from lzip.
 
-The configure script now accepts the option "--disable-static".
+The option "-0" has been ported from lzip to minilzip.
 
-Improved portability to BSD systems:
+If all the data to be compressed are written in advance, lzlib will
+automatically adjust the header of the compressed data to use the
+smallest possible dictionary size. This feature reduces the amount of
+memory needed for decompression and allows minilzip to produce identical
+compressed output as lzip.
 
-    The configure script now accepts the option "--disable-ldconfig".
-
-    "make install" now ignores any errors from ldconfig.
-
-Minilzip now copies file dates, permissions, and ownership like "cp -p".
-(If the user ID or the group ID can't be duplicated, the file permission
-bits S_ISUID and S_ISGID are cleared).
-
-"lzlib.texinfo" has been renamed to "lzlib.texi".
-
-The license has been changed to "GPL version 2 or later with link
-exception".
-
-                                 -----
-
-Rationale for the license change.
-
-I have recently been shocked to know that it is apparently not legal to
-use lzlib in GPLv2 programs. Linking those programs with lzlib violates
-the GPLv2. But linking proprietary programs with lzlib is fine and legal!
-
-This problem is not caused by any fault in lzlib's link exception; the
-LGPLv3 has the same problem. See for example
-http://nmav.gnutls.org/2013/03/the-perils-of-lgplv3.html
-
-Of course it was never my intention to prevent GPLv2 programs from using
-lzlib. I'm sorry for any inconveniences my oversight may have caused to
-distributions, GPLv2 software projects, and users in general.
-
-I am also ashamed of having participated in this schism of the GPL
-community. The mere proliferation of different free software licenses is
-a burden in and of itself. From now on I'll license all my projects and
-contributions in a way compatible with the GPLv2.
+The targets "install-compress", "install-strip-compress",
+"install-info-compress" and "install-man-compress" have been added to
+the Makefile.

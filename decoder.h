@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2014 Antonio Diaz Diaz.
+    Copyright (C) 2009-2015 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -338,14 +338,14 @@ struct LZ_decoder
 static inline bool LZd_enough_free_bytes( const struct LZ_decoder * const d )
   { return Cb_free_bytes( &d->cb ) >= lzd_min_free_bytes; }
 
-static inline uint8_t LZd_get_prev_byte( const struct LZ_decoder * const d )
+static inline uint8_t LZd_peek_prev( const struct LZ_decoder * const d )
   {
   const int i = ( ( d->cb.put > 0 ) ? d->cb.put : d->cb.buffer_size ) - 1;
   return d->cb.buffer[i];
   }
 
-static inline uint8_t LZd_get_byte( const struct LZ_decoder * const d,
-                                    const int distance )
+static inline uint8_t LZd_peek( const struct LZ_decoder * const d,
+                                const int distance )
   {
   int i = d->cb.put - distance - 1;
   if( i < 0 ) i += d->cb.buffer_size;
@@ -407,7 +407,6 @@ static inline bool LZd_init( struct LZ_decoder * const d,
   Bm_array_init( d->bm_dis_slot[0], len_states * (1 << dis_slot_bits) );
   Bm_array_init( d->bm_dis, modeled_distances - end_dis_model );
   Bm_array_init( d->bm_align, dis_align_size );
-
   Lm_init( &d->match_len_model );
   Lm_init( &d->rep_len_model );
   d->cb.buffer[d->cb.buffer_size-1] = 0;	/* prev_byte of first byte */

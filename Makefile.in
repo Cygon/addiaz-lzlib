@@ -11,7 +11,9 @@ SHELL = /bin/sh
 objs = carg_parser.o main.o
 
 
-.PHONY : all install install-bin install-info install-man install-strip \
+.PHONY : all install install-bin install-info install-man \
+         install-strip install-compress install-strip-compress \
+         install-bin-strip install-info-compress install-man-compress \
          install-as-lzip uninstall uninstall-bin uninstall-info uninstall-man \
          doc info man check dist clean distclean
 
@@ -21,33 +23,31 @@ lib$(libname).a : lzlib.o
 	$(AR) -rcs $@ $<
 
 lib$(libname).so.$(pkgversion) : lzlib_sh.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -fpic -fPIC -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $<
+	$(CC) $(LDFLAGS) $(CFLAGS) -fpic -fPIC -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $<
 
 $(progname) : $(objs) lib$(libname).a
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(objs) lib$(libname).a
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objs) lib$(libname).a
 
 $(progname)_shared : $(objs) lib$(libname).so.$(pkgversion)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(objs) lib$(libname).so.$(pkgversion)
-
-$(progname)_profiled : $(objs) lib$(libname).a
-	$(CC) $(CFLAGS) $(LDFLAGS) -pg -o $@ $(objs) lib$(libname).a
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objs) lib$(libname).so.$(pkgversion)
 
 bbexample : bbexample.o lib$(libname).a
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ bbexample.o lib$(libname).a
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ bbexample.o lib$(libname).a
 
 lzcheck : lzcheck.o lib$(libname).a
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ lzcheck.o lib$(libname).a
+	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ lzcheck.o lib$(libname).a
 
 main.o : main.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
 
 lzlib_sh.o : lzlib.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -fpic -fPIC -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -fpic -fPIC -c -o $@ $<
 
 %.o : %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
-lzdeps = lzlib.h lzip.h cbuffer.c decoder.h decoder.c encoder.h encoder.c
+lzdeps = lzlib.h lzip.h cbuffer.c decoder.h decoder.c encoder_base.h \
+         encoder_base.c encoder.h encoder.c fast_encoder.h fast_encoder.c
 
 $(objs)       : Makefile
 carg_parser.o : carg_parser.h
@@ -77,6 +77,9 @@ check : $(progname) bbexample lzcheck
 	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite $(pkgversion)
 
 install : install-bin install-info
+install-strip : install-bin-strip install-info
+install-compress : install-bin install-info-compress
+install-strip-compress : install-bin-strip install-info-compress
 
 install-bin : all
 	if [ ! -d "$(DESTDIR)$(includedir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(includedir)" ; fi
@@ -99,17 +102,25 @@ install-bin : all
 	     [ -x "$(LDCONFIG)" ] ; then "$(LDCONFIG)" -n "$(DESTDIR)$(libdir)" || true ; fi ; \
 	fi
 
+install-bin-strip : all
+	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install-bin
+
 install-info :
 	if [ ! -d "$(DESTDIR)$(infodir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(infodir)" ; fi
+	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"*
 	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info "$(DESTDIR)$(infodir)/$(pkgname).info"
 	-install-info --info-dir="$(DESTDIR)$(infodir)" "$(DESTDIR)$(infodir)/$(pkgname).info"
 
+install-info-compress : install-info
+	lzip -v -9 "$(DESTDIR)$(infodir)/$(pkgname).info"
+
 install-man :
 	if [ ! -d "$(DESTDIR)$(mandir)/man1" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1" ; fi
+	-rm -f "$(DESTDIR)$(mandir)/man1/$(progname).1"*
 	$(INSTALL_DATA) $(VPATH)/doc/$(progname).1 "$(DESTDIR)$(mandir)/man1/$(progname).1"
 
-install-strip : all
-	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install
+install-man-compress : install-man
+	lzip -v -9 "$(DESTDIR)$(mandir)/man1/$(progname).1"
 
 install-as-lzip : install install-man
 	if [ ! -d "$(DESTDIR)$(bindir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(bindir)" ; fi
@@ -117,7 +128,7 @@ install-as-lzip : install install-man
 	-rm -f "$(DESTDIR)$(bindir)/lzip"
 	cd "$(DESTDIR)$(bindir)" && ln -s $(progname) lzip
 
-uninstall : uninstall-bin uninstall-info uninstall-man
+uninstall : uninstall-man uninstall-info uninstall-bin
 
 uninstall-bin :
 	-rm -f "$(DESTDIR)$(bindir)/$(progname)"
@@ -129,10 +140,10 @@ uninstall-bin :
 
 uninstall-info :
 	-install-info --info-dir="$(DESTDIR)$(infodir)" --remove "$(DESTDIR)$(infodir)/$(pkgname).info"
-	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"
+	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"*
 
 uninstall-man :
-	-rm -f "$(DESTDIR)$(mandir)/man1/$(progname).1"
+	-rm -f "$(DESTDIR)$(mandir)/man1/$(progname).1"*
 
 dist : doc
 	ln -sf $(VPATH) $(DISTNAME)
@@ -158,7 +169,7 @@ dist : doc
 	lzip -v -9 $(DISTNAME).tar
 
 clean :
-	-rm -f $(progname) $(progname)_profiled $(objs)
+	-rm -f $(progname) $(objs)
 	-rm -f $(progname)_shared lzlib_sh.o *.so.$(pkgversion)
 	-rm -f bbexample bbexample.o lzcheck lzcheck.o lzlib.o *.a
 

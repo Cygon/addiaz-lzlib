@@ -1,5 +1,5 @@
 /*  Minilzip - Test program for the lzlib library
-    Copyright (C) 2009-2014 Antonio Diaz Diaz.
+    Copyright (C) 2009-2015 Antonio Diaz Diaz.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ void internal_error( const char * const msg );
 
 const char * const Program_name = "Minilzip";
 const char * const program_name = "minilzip";
-const char * const program_year = "2014";
+const char * const program_year = "2015";
 const char * invocation_name = 0;
 
 struct { const char * from; const char * to; } const known_extensions[] = {
@@ -147,11 +147,10 @@ static void Pp_show_msg( struct Pretty_print * const pp, const char * const msg 
     {
     if( pp->first_post )
       {
-      int i, len;
+      int i, len = pp->longest_name - strlen( pp->name );
       pp->first_post = false;
       fprintf( stderr, "  %s: ", pp->name );
-      len = pp->longest_name - strlen( pp->name );
-      for( i = 0; i < len; ++i ) fprintf( stderr, " " );
+      for( i = 0; i < len; ++i ) fputc( ' ', stderr );
       if( !msg ) fflush( stderr );
       }
     if( msg ) fprintf( stderr, "%s\n", msg );
@@ -170,7 +169,7 @@ static void show_help( void )
           "  -c, --stdout                   send output to standard output\n"
           "  -d, --decompress               decompress\n"
           "  -f, --force                    overwrite existing output files\n"
-          "  -F, --recompress               force recompression of compressed files\n"
+          "  -F, --recompress               force re-compression of compressed files\n"
           "  -k, --keep                     keep (don't delete) input files\n"
           "  -m, --match-length=<bytes>     set match length limit in bytes [36]\n"
           "  -o, --output=<file>            if reading stdin, place the output into <file>\n"
@@ -179,8 +178,8 @@ static void show_help( void )
           "  -S, --volume-size=<bytes>      set volume size limit in bytes\n"
           "  -t, --test                     test compressed file integrity\n"
           "  -v, --verbose                  be verbose (a 2nd -v gives more)\n"
-          "  -1 .. -9                       set compression level [default 6]\n"
-          "      --fast                     alias for -1\n"
+          "  -0 .. -9                       set compression level [default 6]\n"
+          "      --fast                     alias for -0\n"
           "      --best                     alias for -9\n"
           "If no file names are given, minilzip compresses or decompresses\n"
           "from standard input to standard output.\n"
@@ -189,8 +188,7 @@ static void show_help( void )
           "The bidimensional parameter space of LZMA can't be mapped to a linear\n"
           "scale optimal for all files. If your files are large, very repetitive,\n"
           "etc, you may need to use the --match-length and --dictionary-size\n"
-          "options directly to achieve optimal performance. For example, -9m64\n"
-          "usually compresses executables more (and faster) than -9.\n"
+          "options directly to achieve optimal performance.\n"
           "\nExit status: 0 for a normal exit, 1 for environmental problems (file\n"
           "not found, invalid flags, I/O errors, etc), 2 to indicate a corrupt or\n"
           "invalid input file, 3 for an internal consistency error (eg, bug) which\n"
@@ -213,18 +211,21 @@ static void show_version( void )
 
 static void show_header( const unsigned dictionary_size )
   {
-  const char * const prefix[8] =
-    { "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi" };
-  enum { factor = 1024 };
-  const char * p = "";
-  const char * np = "  ";
-  unsigned num = dictionary_size, i;
-  bool exact = ( num % factor == 0 );
+  if( verbosity >= 3 )
+    {
+    const char * const prefix[8] =
+      { "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi", "Yi" };
+    enum { factor = 1024 };
+    const char * p = "";
+    const char * np = "  ";
+    unsigned num = dictionary_size, i;
+    bool exact = ( num % factor == 0 );
 
-  for( i = 0; i < 8 && ( num > 9999 || ( exact && num >= factor ) ); ++i )
-    { num /= factor; if( num % factor != 0 ) exact = false;
-      p = prefix[i]; np = ""; }
-  fprintf( stderr, "dictionary size %s%4u %sB.  ", np, num, p );
+    for( i = 0; i < 8 && ( num > 9999 || ( exact && num >= factor ) ); ++i )
+      { num /= factor; if( num % factor != 0 ) exact = false;
+        p = prefix[i]; np = ""; }
+    fprintf( stderr, "dictionary size %s%4u %sB.  ", np, num, p );
+    }
   }
 
 
@@ -244,7 +245,7 @@ static unsigned long long getnum( const char * const ptr,
 
   if( !errno && tail[0] )
     {
-    int factor = ( tail[1] == 'i' ) ? 1024 : 1000;
+    const int factor = ( tail[1] == 'i' ) ? 1024 : 1000;
     int exponent = 0, i;
     bool bad_multiplier = false;
     switch( tail[0] )
@@ -287,11 +288,15 @@ static unsigned long long getnum( const char * const ptr,
 static int get_dict_size( const char * const arg )
   {
   char * tail;
-  int bits = strtol( arg, &tail, 0 );
+  int dictionary_size;
+  const int bits = strtol( arg, &tail, 0 );
   if( bits >= LZ_min_dictionary_bits() &&
       bits <= LZ_max_dictionary_bits() && *tail == 0 )
     return ( 1 << bits );
-  return getnum( arg, LZ_min_dictionary_size(), LZ_max_dictionary_size() );
+  dictionary_size = getnum( arg, LZ_min_dictionary_size(),
+                                 LZ_max_dictionary_size() );
+  if( dictionary_size == 65535 ) ++dictionary_size;	/* no fast encoder */
+  return dictionary_size;
   }
 
 
@@ -301,8 +306,10 @@ static int extension_index( const char * const name )
   for( i = 0; known_extensions[i].from; ++i )
     {
     const char * const ext = known_extensions[i].from;
-    if( strlen( name ) > strlen( ext ) &&
-        strncmp( name + strlen( name ) - strlen( ext ), ext, strlen( ext ) ) == 0 )
+    const unsigned name_len = strlen( name );
+    const unsigned ext_len = strlen( ext );
+    if( name_len > ext_len &&
+        strncmp( name + name_len - ext_len, ext, ext_len ) == 0 )
       return i;
     }
   return -1;
@@ -326,7 +333,7 @@ static int open_instream( const char * const name, struct stat * const in_statsp
     if( infd < 0 )
       {
       if( verbosity >= 0 )
-        fprintf( stderr, "%s: Can't open input file '%s': %s.\n",
+        fprintf( stderr, "%s: Can't open input file '%s': %s\n",
                  program_name, name, strerror( errno ) );
       }
     else
@@ -343,7 +350,7 @@ static int open_instream( const char * const name, struct stat * const in_statsp
           fprintf( stderr, "%s: Input file '%s' is not a regular file%s.\n",
                    program_name, name,
                    ( can_read && !no_ofile ) ?
-                   " and '--stdout' was not specified" : "" );
+                   ",\n          and '--stdout' was not specified" : "" );
         close( infd );
         infd = -1;
         }
@@ -379,24 +386,25 @@ static void set_c_outname( const char * const name, const bool multifile )
 
 static void set_d_outname( const char * const name, const int i )
   {
+  const unsigned name_len = strlen( name );
   if( i >= 0 )
     {
     const char * const from = known_extensions[i].from;
-    if( strlen( name ) > strlen( from ) )
+    const unsigned from_len = strlen( from );
+    if( name_len > from_len )
       {
-      output_filename = resize_buffer( output_filename, strlen( name ) +
+      output_filename = resize_buffer( output_filename, name_len +
                                        strlen( known_extensions[0].to ) + 1 );
       strcpy( output_filename, name );
-      strcpy( output_filename + strlen( name ) - strlen( from ),
-              known_extensions[i].to );
+      strcpy( output_filename + name_len - from_len, known_extensions[i].to );
       return;
       }
     }
-  output_filename = resize_buffer( output_filename, strlen( name ) + 4 + 1 );
+  output_filename = resize_buffer( output_filename, name_len + 4 + 1 );
   strcpy( output_filename, name );
   strcat( output_filename, ".out" );
   if( verbosity >= 1 )
-    fprintf( stderr, "%s: Can't guess original name for '%s' -- using '%s'.\n",
+    fprintf( stderr, "%s: Can't guess original name for '%s' -- using '%s'\n",
              program_name, name, output_filename );
   }
 
@@ -413,7 +421,7 @@ static bool open_outstream( const bool force )
       fprintf( stderr, "%s: Output file '%s' already exists, skipping.\n",
                program_name, output_filename );
     else
-      fprintf( stderr, "%s: Can't create output file '%s': %s.\n",
+      fprintf( stderr, "%s: Can't create output file '%s': %s\n",
                program_name, output_filename, strerror( errno ) );
     }
   return ( outfd >= 0 );
@@ -422,7 +430,7 @@ static bool open_outstream( const bool force )
 
 static bool check_tty( const int infd, const enum Mode program_mode )
   {
-  if( program_mode == m_compress && outfd >= 0 && isatty( outfd ) )
+  if( program_mode == m_compress && isatty( outfd ) )
     {
     show_error( "I won't write compressed data to a terminal.", 0, true );
     return false;
@@ -522,11 +530,11 @@ static int writeblock( const int fd, const uint8_t * const buf, const int size )
 
 static bool next_filename( void )
   {
-  const unsigned len = strlen( known_extensions[0].from );
+  const unsigned name_len = strlen( output_filename );
+  const unsigned ext_len = strlen( known_extensions[0].from );
   int i, j;
-
-  if( strlen( output_filename ) >= len + 5 )		/* "*00001.lz" */
-    for( i = strlen( output_filename ) - len - 1, j = 0; j < 5; --i, ++j )
+  if( name_len >= ext_len + 5 )				/* "*00001.lz" */
+    for( i = name_len - ext_len - 1, j = 0; j < 5; --i, ++j )
       {
       if( output_filename[i] < '9' ) { ++output_filename[i]; return true; }
       else output_filename[i] = '0';
@@ -569,7 +577,7 @@ static int do_compress( struct LZ_Encoder * const encoder,
       {
       Pp_show_msg( pp, 0 );
       if( verbosity >= 0 )
-        fprintf( stderr, "%s: LZ_compress_read error: %s.\n",
+        fprintf( stderr, "%s: LZ_compress_read error: %s\n",
                  program_name, LZ_strerror( LZ_compress_errno( encoder ) ) );
         return 1;
       }
@@ -610,7 +618,7 @@ static int do_compress( struct LZ_Encoder * const encoder,
         {
         Pp_show_msg( pp, 0 );
         if( verbosity >= 0 )
-          fprintf( stderr, "%s: LZ_compress_restart_member error: %s.\n",
+          fprintf( stderr, "%s: LZ_compress_restart_member error: %s\n",
                    program_name, LZ_strerror( LZ_compress_errno( encoder ) ) );
         return 1;
         }
@@ -622,7 +630,7 @@ static int do_compress( struct LZ_Encoder * const encoder,
     const unsigned long long in_size = LZ_compress_total_in_size( encoder );
     const unsigned long long out_size = LZ_compress_total_out_size( encoder );
     if( in_size == 0 || out_size == 0 )
-      fprintf( stderr, " no data compressed.\n" );
+      fputs( " no data compressed.\n", stderr );
     else
       fprintf( stderr, "%6.3f:1, %6.3f bits/byte, "
                        "%5.2f%% saved, %llu in, %llu out.\n",
@@ -635,11 +643,11 @@ static int do_compress( struct LZ_Encoder * const encoder,
   }
 
 
-int compress( const unsigned long long member_size,
-              const unsigned long long volume_size,
-              const struct Lzma_options * const encoder_options,
-              const int infd, struct Pretty_print * const pp,
-              const struct stat * const in_statsp )
+static int compress( const unsigned long long member_size,
+                     const unsigned long long volume_size, const int infd,
+                     const struct Lzma_options * const encoder_options,
+                     struct Pretty_print * const pp,
+                     const struct stat * const in_statsp )
   {
   struct LZ_Encoder * const encoder =
     LZ_compress_open( encoder_options->dictionary_size,
@@ -662,8 +670,8 @@ int compress( const unsigned long long member_size,
   }
 
 
-int do_decompress( struct LZ_Decoder * const decoder, const int infd,
-                   struct Pretty_print * const pp, const bool testing )
+static int do_decompress( struct LZ_Decoder * const decoder, const int infd,
+                          struct Pretty_print * const pp, const bool testing )
   {
   enum { buffer_size = 65536 };
   uint8_t buffer[buffer_size];
@@ -710,8 +718,7 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
           const unsigned long long data_position = LZ_decompress_data_position( decoder );
           const unsigned long long member_size = LZ_decompress_member_position( decoder );
           Pp_show_msg( pp, 0 );
-          if( verbosity >= 3 )
-            show_header( LZ_decompress_dictionary_size( decoder ) );
+          show_header( LZ_decompress_dictionary_size( decoder ) );
           if( verbosity >= 2 && data_position > 0 && member_size > 0 )
             fprintf( stderr, "%6.3f:1, %6.3f bits/byte, %5.2f%% saved.  ",
                      (double)data_position / member_size,
@@ -721,7 +728,7 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
             fprintf( stderr, "data CRC %08X, data size %9llu, member size %8llu.  ",
                      LZ_decompress_data_crc( decoder ),
                      data_position, member_size );
-          fprintf( stderr, testing ? "ok\n" : "done\n" );
+          fputs( testing ? "ok\n" : "done\n", stderr );
           }
         first_member = false; Pp_reset( pp );
         }
@@ -742,10 +749,10 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
         {
         Pp_show_msg( pp, 0 );
         if( lz_errno == LZ_unexpected_eof )
-          fprintf( stderr, "File ends unexpectedly at pos %llu.\n",
+          fprintf( stderr, "File ends unexpectedly at pos %llu\n",
                    LZ_decompress_total_in_size( decoder ) );
         else
-          fprintf( stderr, "Decoder error at pos %llu: %s.\n",
+          fprintf( stderr, "Decoder error at pos %llu: %s\n",
                    LZ_decompress_total_in_size( decoder ),
                    LZ_strerror( LZ_decompress_errno( decoder ) ) );
         }
@@ -759,8 +766,8 @@ int do_decompress( struct LZ_Decoder * const decoder, const int infd,
   }
 
 
-int decompress( const int infd, struct Pretty_print * const pp,
-                const bool testing )
+static int decompress( const int infd, struct Pretty_print * const pp,
+                       const bool testing )
   {
   struct LZ_Decoder * const decoder = LZ_decompress_open();
   int retval;
@@ -797,8 +804,8 @@ void show_error( const char * const msg, const int errcode, const bool help )
     if( msg && msg[0] )
       {
       fprintf( stderr, "%s: %s", program_name, msg );
-      if( errcode > 0 ) fprintf( stderr, ": %s.", strerror( errcode ) );
-      fprintf( stderr, "\n" );
+      if( errcode > 0 ) fprintf( stderr, ": %s", strerror( errcode ) );
+      fputc( '\n', stderr );
       }
     if( help )
       fprintf( stderr, "Try '%s --help' for more information.\n",
@@ -821,7 +828,7 @@ int main( const int argc, const char * const argv[] )
      to the corresponding LZMA compression modes. */
   const struct Lzma_options option_mapping[] =
     {
-    { 1 << 20,   5 },		/* -0 */
+    {   65535,  16 },		/* -0 */
     { 1 << 20,   5 },		/* -1 */
     { 3 << 19,   6 },		/* -2 */
     { 1 << 21,   8 },		/* -3 */
@@ -832,7 +839,7 @@ int main( const int argc, const char * const argv[] )
     { 3 << 23, 132 },		/* -8 */
     { 1 << 25, 273 } };		/* -9 */
   struct Lzma_options encoder_options = option_mapping[6];  /* default = "-6" */
-  const unsigned long long max_member_size = 0x0100000000000000ULL;
+  const unsigned long long max_member_size = 0x0008000000000000ULL;
   const unsigned long long max_volume_size = 0x4000000000000000ULL;
   unsigned long long member_size = max_member_size;
   unsigned long long volume_size = 0;
@@ -1022,8 +1029,8 @@ int main( const int argc, const char * const argv[] )
     in_statsp = input_filename[0] ? &in_stats : 0;
     Pp_set_name( &pp, input_filename );
     if( program_mode == m_compress )
-      tmp = compress( member_size, volume_size, &encoder_options, infd,
-                      &pp, in_statsp );
+      tmp = compress( member_size, volume_size, infd, &encoder_options, &pp,
+                      in_statsp );
     else
       tmp = decompress( infd, &pp, program_mode == m_test );
     if( tmp > retval ) retval = tmp;

@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2014 Antonio Diaz Diaz.
+    Copyright (C) 2009-2015 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -226,10 +226,10 @@ static inline bool Fh_set_dictionary_size( File_header data, const unsigned sz )
     if( sz > min_dictionary_size )
       {
       const unsigned base_size = 1 << data[5];
-      const unsigned wedge = base_size / 16;
+      const unsigned fraction = base_size / 16;
       int i;
       for( i = 7; i >= 1; --i )
-        if( base_size - ( i * wedge ) >= sz )
+        if( base_size - ( i * fraction ) >= sz )
           { data[5] |= ( i << 5 ); break; }
       }
     return true;
@@ -239,9 +239,13 @@ static inline bool Fh_set_dictionary_size( File_header data, const unsigned sz )
 
 static inline bool Fh_verify( const File_header data )
   {
-  return ( Fh_verify_magic( data ) && Fh_verify_version( data ) &&
-           Fh_get_dictionary_size( data ) >= min_dictionary_size &&
-           Fh_get_dictionary_size( data ) <= max_dictionary_size );
+  if( Fh_verify_magic( data ) && Fh_verify_version( data ) )
+    {
+    const unsigned dictionary_size = Fh_get_dictionary_size( data );
+    return ( dictionary_size >= min_dictionary_size &&
+             dictionary_size <= max_dictionary_size );
+    }
+  return false;
   }
 
 

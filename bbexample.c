@@ -1,5 +1,5 @@
 /*  Buff to buff example - Test program for the lzlib library
-    Copyright (C) 2010-2014 Antonio Diaz Diaz.
+    Copyright (C) 2010-2015 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
@@ -157,21 +157,21 @@ int main( const int argc, const char * const argv[] )
 
   if( argc < 2 )
     {
-    fprintf( stderr, "Usage: bbexample filename\n" );
+    fputs( "Usage: bbexample filename\n", stderr );
     return 1;
     }
 
   file = fopen( argv[1], "rb" );
   if( !file )
     {
-    fprintf( stderr, "bbexample: Can't open file '%s' for reading\n", argv[1] );
+    fprintf( stderr, "bbexample: Can't open file '%s' for reading.\n", argv[1] );
     return 1;
     }
 
   in_buffer = (uint8_t *)malloc( in_buffer_size );
   if( !in_buffer )
     {
-    fprintf( stderr, "bbexample: Not enough memory.\n" );
+    fputs( "bbexample: Not enough memory.\n", stderr );
     return 1;
     }
 
@@ -186,21 +186,21 @@ int main( const int argc, const char * const argv[] )
   mid_buffer = bbcompress( in_buffer, in_size, &mid_size );
   if( !mid_buffer )
     {
-    fprintf( stderr, "bbexample: Not enough memory or compress error.\n" );
+    fputs( "bbexample: Not enough memory or compress error.\n", stderr );
     return 1;
     }
 
   out_buffer = bbdecompress( mid_buffer, mid_size, &out_size );
   if( !out_buffer )
     {
-    fprintf( stderr, "bbexample: Not enough memory or decompress error.\n" );
+    fputs( "bbexample: Not enough memory or decompress error.\n", stderr );
     return 1;
     }
 
   if( in_size != out_size ||
       ( in_size > 0 && memcmp( in_buffer, out_buffer, in_size ) != 0 ) )
     {
-    fprintf( stderr, "bbexample: Decompressed data differs from original.\n" );
+    fputs( "bbexample: Decompressed data differs from original.\n", stderr );
     return 1;
     }
 

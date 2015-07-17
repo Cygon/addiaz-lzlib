@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2014 Antonio Diaz Diaz.
+    Copyright (C) 2009-2015 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -66,7 +66,7 @@ static int LZd_decode_member( struct LZ_decoder * const d )
       return 0;
     if( Rd_decode_bit( rdec, &d->bm_match[*state][pos_state] ) == 0 )	/* 1st bit */
       {
-      const uint8_t prev_byte = LZd_get_prev_byte( d );
+      const uint8_t prev_byte = LZd_peek_prev( d );
       if( St_is_char( *state ) )
         {
         *state -= ( *state < 4 ) ? *state : 3;
@@ -78,10 +78,10 @@ static int LZd_decode_member( struct LZ_decoder * const d )
         *state -= ( *state < 10 ) ? 3 : 6;
         LZd_put_byte( d, Rd_decode_matched( rdec,
                       d->bm_literal[get_lit_state(prev_byte)],
-                      LZd_get_byte( d, d->rep0 ) ) );
+                      LZd_peek( d, d->rep0 ) ) );
         }
       }
-    else
+    else					/* match or repeated match */
       {
       int len;
       if( Rd_decode_bit( rdec, &d->bm_rep[*state] ) != 0 )	/* 2nd bit */
@@ -106,12 +106,12 @@ static int LZd_decode_member( struct LZ_decoder * const d )
           {
           if( Rd_decode_bit( rdec, &d->bm_len[*state][pos_state] ) == 0 )	/* 4th bit */
             { *state = St_set_short_rep( *state );
-              LZd_put_byte( d, LZd_get_byte( d, d->rep0 ) ); continue; }
+              LZd_put_byte( d, LZd_peek( d, d->rep0 ) ); continue; }
           }
         *state = St_set_rep( *state );
         len = min_match_len + Rd_decode_len( rdec, &d->rep_len_model, pos_state );
         }
-      else
+      else					/* match */
         {
         int dis_slot;
         const unsigned rep0_saved = d->rep0;
@@ -129,7 +129,7 @@ static int LZd_decode_member( struct LZ_decoder * const d )
             {
             d->rep0 += Rd_decode( rdec, direct_bits - dis_align_bits ) << dis_align_bits;
             d->rep0 += Rd_decode_tree_reversed4( rdec, d->bm_align );
-            if( d->rep0 == 0xFFFFFFFFU )		/* Marker found */
+            if( d->rep0 == 0xFFFFFFFFU )		/* marker found */
               {
               d->rep0 = rep0_saved;
               Rd_normalize( rdec );

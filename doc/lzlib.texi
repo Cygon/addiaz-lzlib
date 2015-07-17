@@ -6,8 +6,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 27 August 2014
-@set VERSION 1.6
+@set UPDATED 8 July 2015
+@set VERSION 1.7
 
 @dircategory Data Compression
 @direntry
@@ -35,9 +35,9 @@
 This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 
 @menu
-* Introduction::                Purpose and features of Lzlib
+* Introduction::                Purpose and features of lzlib
 * Library version::             Checking library version
-* Buffering::                   Sizes of Lzlib's buffers
+* Buffering::                   Sizes of lzlib's buffers
 * Parameter limits::            Min / max values for some parameters
 * Compression functions::       Descriptions of the compression functions
 * Decompression functions::     Descriptions of the decompression functions
@@ -50,7 +50,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009-2014 Antonio Diaz Diaz.
+Copyright @copyright{} 2009-2015 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -65,16 +65,21 @@ and decompression functions, including integrity checking of the
 decompressed data. The compressed data format used by the library is the
 lzip format. Lzlib is written in C.
 
-The lzip file format is designed for long-term data archiving, taking
-into account both data integrity and decoder availability:
+The lzip file format is designed for data sharing and long-term
+archiving, taking into account both data integrity and decoder
+availability:
 
 @itemize @bullet
 @item
 The lzip format provides very safe integrity checking and some data
-recovery means. The lziprecover program can repair bit-flip errors (one
-of the most common forms of data corruption) in lzip files, and provides
-data recovery capabilities, including error-checked merging of damaged
-copies of a file.
+recovery means. The
+@uref{http://www.nongnu.org/lzip/manual/lziprecover_manual.html#Data-safety,,lziprecover}
+program can repair bit-flip errors (one of the most common forms of data
+corruption) in lzip files, and provides data recovery capabilities,
+including error-checked merging of damaged copies of a file.
+@ifnothtml
+@ref{Data safety,,,lziprecover}.
+@end ifnothtml
 
 @item
 The lzip format is as simple as possible (but not simpler). The lzip
@@ -85,8 +90,8 @@ data from a lzip file long after quantum computers eventually render
 LZMA obsolete.
 
 @item
-Additionally lzip is copylefted, which guarantees that it will remain
-free forever.
+Additionally the lzip reference implementation is copylefted, which
+guarantees that it will remain free forever.
 @end itemize
 
 A nice feature of the lzip format is that a corrupt byte is easier to
@@ -100,15 +105,21 @@ library are given in the files @samp{main.c} and @samp{bbexample.c} from
 the source distribution.
 
 Compression/decompression is done by repeatedly calling a couple of
-read/write functions until all the data has been processed by the
+read/write functions until all the data have been processed by the
 library. This interface is safer and less error prone than the
 traditional zlib interface.
 
 Compression/decompression is done when the read function is called. This
 means the value returned by the position functions will not be updated
-until some data is read, even if you write a lot of data. If you want
-the data to be compressed in advance, just call the read function with a
+until a read call, even if a lot of data is written. If you want the
+data to be compressed in advance, just call the read function with a
 @var{size} equal to 0.
+
+If all the data to be compressed are written in advance, lzlib will
+automatically adjust the header of the compressed data to use the
+smallest possible dictionary size. This feature reduces the amount of
+memory needed for decompression and allows minilzip to produce identical
+compressed output as lzip.
 
 Lzlib will correctly decompress a data stream which is the concatenation
 of two or more compressed data streams. The result is the concatenation
@@ -119,17 +130,18 @@ All the library functions are thread safe. The library does not install
 any signal handler. The decoder checks the consistency of the compressed
 data, so the library should never crash even in case of corrupted input.
 
-There is no such thing as a "LZMA algorithm"; it is more like a "LZMA
-coding scheme". For example, the option '-0' of lzip uses the scheme in
-almost the simplest way possible; issuing the longest match it can find,
-or a literal byte if it can't find a match. Inversely, a much more
-elaborated way of finding coding sequences of minimum price than the one
-currently used by lzip could be developed, and the resulting sequence
-could also be coded using the LZMA coding scheme.
+In spite of its name (Lempel-Ziv-Markov chain-Algorithm), LZMA is not a
+concrete algorithm; it is more like "any algorithm using the LZMA coding
+scheme". For example, the option @samp{-0} of lzip uses the scheme in almost
+the simplest way possible; issuing the longest match it can find, or a
+literal byte if it can't find a match. Inversely, a much more elaborated
+way of finding coding sequences of minimum size than the one currently
+used by lzip could be developed, and the resulting sequence could also
+be coded using the LZMA coding scheme.
 
-Lzip currently implements two variants of the LZMA algorithm; fast (used
-by option -0) and normal (used by all other compression levels). Lzlib
-just implements the "normal" variant.
+Lzlib currently implements two variants of the LZMA algorithm; fast
+(used by option @samp{-0} of minilzip) and normal (used by all other
+compression levels).
 
 The high compression of LZMA comes from combining two basic, well-proven
 compression ideas: sliding dictionaries (LZ77/78) and markov models (the
@@ -173,7 +185,9 @@ if( LZ_version()[0] != LZ_version_string[0] )
 
 Lzlib internal functions need access to a memory chunk at least as large
 as the dictionary size (sliding window). For efficiency reasons, the
-input buffer for compression is twice as large as the dictionary size.
+input buffer for compression is twice or sixteen times as large as the
+dictionary size.
+
 Finally, for safety reasons, lzlib uses two more internal buffers.
 
 These are the four buffers used by lzlib, and their guaranteed minimum
@@ -181,9 +195,10 @@ sizes:
 
 @itemize @bullet
 @item Input compression buffer. Written to by the
-@samp{LZ_compress_write} function. Its size is two times the dictionary
-size set with the @samp{LZ_compress_open} function or 64 KiB, whichever
-is larger.
+@samp{LZ_compress_write} function. For the normal variant of LZMA, its
+size is two times the dictionary size set with the
+@samp{LZ_compress_open} function or 64 KiB, whichever is larger. For the
+fast variant, its size is 1 MiB.
 
 @item Output compression buffer. Read from by the
 @samp{LZ_compress_read} function. Its size is 64 KiB.
@@ -261,6 +276,11 @@ to it.
 range from 5 to 273. Larger values usually give better compression
 ratios but longer compression times.
 
+If @var{dictionary_size} is 65535 and @var{match_len_limit} is 16, the
+fast variant of LZMA is chosen, which produces identical compressed
+output as @code{lzip -0}. (The dictionary size used will be rounded
+upwards to 64 KiB).
+
 @var{member_size} sets the member size limit in bytes. Minimum member
 size limit is 100 kB. Small member size may degrade compression ratio, so
 use it only when needed. To produce a single-member data stream, give
@@ -279,8 +299,8 @@ more be used as an argument to any LZ_compress function.
 
 @deftypefun int LZ_compress_finish ( struct LZ_Encoder * const @var{encoder} )
 Use this function to tell @samp{lzlib} that all the data for this member
-has already been written (with the @samp{LZ_compress_write} function).
-After all the produced compressed data has been read with
+have already been written (with the @samp{LZ_compress_write} function).
+After all the produced compressed data have been read with
 @samp{LZ_compress_read} and @samp{LZ_compress_member_finished} returns
 1, a new member can be started with @samp{LZ_compress_restart_member}.
 @end deftypefun
@@ -297,9 +317,8 @@ indicates that the current member has been fully read (with the
 @deftypefun int LZ_compress_sync_flush ( struct LZ_Encoder * const @var{encoder} )
 Use this function to make available to @samp{LZ_compress_read} all the
 data already written with the @samp{LZ_compress_write} function. First
-call @samp{LZ_compress_read} until it returns 0. Then call
-@samp{LZ_compress_sync_flush}. Finally, call @samp{LZ_compress_read}
-again to read the remaining data.
+call @samp{LZ_compress_sync_flush}. Then call @samp{LZ_compress_read}
+until it returns 0.
 
 Repeated use of @samp{LZ_compress_sync_flush} may degrade compression
 ratio, so use it only when needed.
@@ -345,8 +364,8 @@ Returns the current error code for @var{encoder} (@pxref{Error codes}).
 
 
 @deftypefun int LZ_compress_finished ( struct LZ_Encoder * const @var{encoder} )
-Returns 1 if all the data has been read and @samp{LZ_compress_close} can
-be safely called. Otherwise it returns 0.
+Returns 1 if all the data have been read and @samp{LZ_compress_close}
+can be safely called. Otherwise it returns 0.
 @end deftypefun
 
 
@@ -414,7 +433,7 @@ more be used as an argument to any LZ_decompress function.
 
 @deftypefun int LZ_decompress_finish ( struct LZ_Decoder * const @var{decoder} )
 Use this function to tell @samp{lzlib} that all the data for this stream
-has already been written (with the @samp{LZ_decompress_write} function).
+have already been written (with the @samp{LZ_decompress_write} function).
 @end deftypefun
 
 
@@ -478,7 +497,7 @@ Returns the current error code for @var{decoder} (@pxref{Error codes}).
 
 
 @deftypefun int LZ_decompress_finished ( struct LZ_Decoder * const @var{decoder} )
-Returns 1 if all the data has been read and @samp{LZ_decompress_close}
+Returns 1 if all the data have been read and @samp{LZ_decompress_close}
 can be safely called. Otherwise it returns 0.
 @end deftypefun
 
@@ -653,20 +672,26 @@ A four byte string, identifying the lzip format, with the value "LZIP"
 Just in case something needs to be modified in the future. 1 for now.
 
 @item DS (coded dictionary size, 1 byte)
-Lzip divides the distance between any two powers of 2 into 8 equally
-spaced intervals, named "wedges". The dictionary size is calculated by
-taking a power of 2 (the base size) and substracting from it a number of
-wedges between 0 and 7. The size of a wedge is (base_size / 16).@*
+The dictionary size is calculated by taking a power of 2 (the base size)
+and substracting from it a fraction between 0/16 and 7/16 of the base
+size.@*
 Bits 4-0 contain the base 2 logarithm of the base size (12 to 29).@*
-Bits 7-5 contain the number of wedges (0 to 7) to substract from the
-base size to obtain the dictionary size.@*
+Bits 7-5 contain the numerator of the fraction (0 to 7) to substract
+from the base size to obtain the dictionary size.@*
 Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB@*
 Valid values for dictionary size range from 4 KiB to 512 MiB.
 
 @item Lzma stream
 The lzma stream, finished by an end of stream marker. Uses default
-values for encoder properties. See the lzip manual for a full
-description.@*
+values for encoder properties.
+@ifnothtml
+@xref{Stream format,,,lzip},
+@end ifnothtml
+@ifhtml
+See
+@uref{http://www.nongnu.org/lzip/manual/lzip_manual.html#Stream-format,,Stream format}
+@end ifhtml
+for a complete description.@*
 Lzip only uses the LZMA marker @samp{2} ("End Of Stream" marker). Lzlib
 also uses the LZMA marker @samp{3} ("Sync Flush" marker).
 
@@ -706,7 +731,7 @@ Example 1: Normal compression (@var{member_size} > total output).
 1) LZ_compress_open
 2) LZ_compress_write
 3) LZ_compress_read
-4) go back to step 2 until all input data has been written
+4) go back to step 2 until all input data have been written
 5) LZ_compress_finish
 6) LZ_compress_read
 7) go back to step 6 until LZ_compress_finished returns 1
@@ -735,7 +760,7 @@ Example 3: Decompression.
 1) LZ_decompress_open
 2) LZ_decompress_write
 3) LZ_decompress_read
-4) go back to step 2 until all input data has been written
+4) go back to step 2 until all input data have been written
 5) LZ_decompress_finish
 6) LZ_decompress_read
 7) go back to step 6 until LZ_decompress_finished returns 1
@@ -788,7 +813,7 @@ Example 6: Multi-member compression (user-restarted members).
  6) LZ_compress_read
  7) go back to step 6 until LZ_compress_member_finished returns 1
  8) verify that LZ_compress_finished returns 1
- 9) go to step 12 if all input data has been written
+ 9) go to step 12 if all input data have been written
 10) LZ_compress_restart_member
 11) go back to step 2
 12) LZ_compress_close
@@ -831,14 +856,14 @@ next member in case of data error.
 @cindex bugs
 @cindex getting help
 
-There are probably bugs in Lzlib. There are certainly errors and
+There are probably bugs in lzlib. There are certainly errors and
 omissions in this manual. If you report them, they will get fixed. If
 you don't, no one will ever know about them and they will remain unfixed
 for all eternity, if not longer.
 
-If you find a bug in Lzlib, please send electronic mail to
+If you find a bug in lzlib, please send electronic mail to
 @email{lzip-bug@@nongnu.org}. Include the version number, which you can
-find by running @w{@samp{minilzip --version}} or in
+find by running @w{@code{minilzip --version}} or in
 @samp{LZ_version_string} from @samp{lzlib.h}.
 
 

@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2014 Antonio Diaz Diaz.
+    Copyright (C) 2009-2015 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -77,7 +77,7 @@ static int Cb_read_data( struct Circular_buffer * const cb,
                          uint8_t * const out_buffer, const int out_size )
   {
   int size = 0;
-  if( out_size < 0 ) return 0;
+  if( out_size <= 0 ) return 0;
   if( cb->get > cb->put )
     {
     size = min( cb->buffer_size - cb->get, out_size );

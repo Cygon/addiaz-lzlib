@@ -1,6 +1,6 @@
 #! /bin/sh
 # check script for Lzlib - A compression library for lzip files
-# Copyright (C) 2009-2014 Antonio Diaz Diaz.
+# Copyright (C) 2009-2015 Antonio Diaz Diaz.
 #
 # This script is free software: you have unlimited permission
 # to copy, distribute and modify it.
@@ -86,7 +86,6 @@ printf .
 cat in in > in2 || framework_failure
 "${LZIP}" -s16 -o copy2 < in2 || fail=1
 "${LZIP}" -t copy2.lz || fail=1
-printf .
 "${LZIP}" -cd copy2.lz > copy2 || fail=1
 cmp in2 copy2 || fail=1
 printf .

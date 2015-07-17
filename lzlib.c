@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2014 Antonio Diaz Diaz.
+    Copyright (C) 2009-2015 Antonio Diaz Diaz.
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,33 +35,33 @@
 #include "cbuffer.c"
 #include "decoder.h"
 #include "decoder.c"
+#include "encoder_base.h"
+#include "encoder_base.c"
 #include "encoder.h"
 #include "encoder.c"
+#include "fast_encoder.h"
+#include "fast_encoder.c"
 
 
 struct LZ_Encoder
   {
   unsigned long long partial_in_size;
   unsigned long long partial_out_size;
-  struct Matchfinder * matchfinder;
-  struct LZ_encoder * lz_encoder;
+  struct LZ_encoder_base * lz_encoder_base;	/* these 3 pointers make a */
+  struct LZ_encoder * lz_encoder;		/* polymorphic encoder */
+  struct FLZ_encoder * flz_encoder;
   enum LZ_Errno lz_errno;
-  int flush_pending;
-  File_header member_header;
   bool fatal;
   };
 
-static void LZ_Encoder_init( struct LZ_Encoder * const e,
-                             const File_header header )
+static void LZ_Encoder_init( struct LZ_Encoder * const e )
   {
-  int i;
   e->partial_in_size = 0;
   e->partial_out_size = 0;
-  e->matchfinder = 0;
+  e->lz_encoder_base = 0;
   e->lz_encoder = 0;
+  e->flz_encoder = 0;
   e->lz_errno = LZ_ok;
-  e->flush_pending = 0;
-  for( i = 0; i < Fh_size; ++i ) e->member_header[i] = header[i];
   e->fatal = false;
   }
 
@@ -95,7 +95,8 @@ static void LZ_Decoder_init( struct LZ_Decoder * const d )
 static bool verify_encoder( struct LZ_Encoder * const e )
   {
   if( !e ) return false;
-  if( !e->matchfinder || !e->lz_encoder )
+  if( !e->lz_encoder_base || ( !e->lz_encoder && !e->flz_encoder ) ||
+      ( e->lz_encoder && e->flz_encoder ) )
     { e->lz_errno = LZ_bad_argument; return false; }
   return true;
   }
@@ -120,15 +121,15 @@ const char * LZ_strerror( const enum LZ_Errno lz_errno )
   switch( lz_errno )
     {
     case LZ_ok            : return "ok";
-    case LZ_bad_argument  : return "bad argument";
-    case LZ_mem_error     : return "not enough memory";
-    case LZ_sequence_error: return "sequence error";
-    case LZ_header_error  : return "header error";
-    case LZ_unexpected_eof: return "unexpected eof";
-    case LZ_data_error    : return "data error";
-    case LZ_library_error : return "library error";
+    case LZ_bad_argument  : return "Bad argument";
+    case LZ_mem_error     : return "Not enough memory";
+    case LZ_sequence_error: return "Sequence error";
+    case LZ_header_error  : return "Header error";
+    case LZ_unexpected_eof: return "Unexpected eof";
+    case LZ_data_error    : return "Data error";
+    case LZ_library_error : return "Library error";
     }
-  return "invalid error code";
+  return "Invalid error code";
   }
 
 
@@ -147,35 +148,31 @@ struct LZ_Encoder * LZ_compress_open( const int dictionary_size,
                                       const unsigned long long member_size )
   {
   File_header header;
-  const bool error = ( !Fh_set_dictionary_size( header, dictionary_size ) ||
-                       match_len_limit < min_match_len_limit ||
-                       match_len_limit > max_match_len ||
-                       member_size < min_dictionary_size );
-
   struct LZ_Encoder * const e =
     (struct LZ_Encoder *)malloc( sizeof (struct LZ_Encoder) );
   if( !e ) return 0;
-  Fh_set_magic( header );
-  LZ_Encoder_init( e, header );
-  if( error ) e->lz_errno = LZ_bad_argument;
+  LZ_Encoder_init( e );
+  if( !Fh_set_dictionary_size( header, dictionary_size ) ||
+      match_len_limit < min_match_len_limit ||
+      match_len_limit > max_match_len ||
+      member_size < min_dictionary_size )
+    e->lz_errno = LZ_bad_argument;
   else
     {
-    e->matchfinder = (struct Matchfinder *)malloc( sizeof (struct Matchfinder) );
-    if( e->matchfinder )
+    if( dictionary_size == 65535 && match_len_limit == 16 )
+      {
+      e->flz_encoder = (struct FLZ_encoder *)malloc( sizeof (struct FLZ_encoder) );
+      if( e->flz_encoder && FLZe_init( e->flz_encoder, member_size ) )
+        { e->lz_encoder_base = &e->flz_encoder->eb; return e; }
+      free( e->flz_encoder ); e->flz_encoder = 0;
+      }
+    else
       {
       e->lz_encoder = (struct LZ_encoder *)malloc( sizeof (struct LZ_encoder) );
-      if( e->lz_encoder )
-        {
-        if( Mf_init( e->matchfinder,
-                     Fh_get_dictionary_size( header ), match_len_limit ) )
-          {
-          if( LZe_init( e->lz_encoder, e->matchfinder, header, member_size ) )
-            return e;
-          Mf_free( e->matchfinder );
-          }
-        free( e->lz_encoder ); e->lz_encoder = 0;
-        }
-      free( e->matchfinder ); e->matchfinder = 0;
+      if( e->lz_encoder && LZe_init( e->lz_encoder, Fh_get_dictionary_size( header ),
+                                     match_len_limit, member_size ) )
+        { e->lz_encoder_base = &e->lz_encoder->eb; return e; }
+      free( e->lz_encoder ); e->lz_encoder = 0;
       }
     e->lz_errno = LZ_mem_error;
     }
@@ -187,10 +184,9 @@ struct LZ_Encoder * LZ_compress_open( const int dictionary_size,
 int LZ_compress_close( struct LZ_Encoder * const e )
   {
   if( !e ) return -1;
-  if( e->lz_encoder )
-    { LZe_free( e->lz_encoder ); free( e->lz_encoder ); }
-  if( e->matchfinder )
-   { Mf_free( e->matchfinder ); free( e->matchfinder ); }
+  if( e->lz_encoder_base )
+    { LZeb_free( e->lz_encoder_base );
+      free( e->lz_encoder ); free( e->flz_encoder ); }
   free( e );
   return 0;
   }
@@ -199,13 +195,17 @@ int LZ_compress_close( struct LZ_Encoder * const e )
 int LZ_compress_finish( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) || e->fatal ) return -1;
-  Mf_finish( e->matchfinder );
-  e->flush_pending = 0;
+  Mb_finish( &e->lz_encoder_base->mb );
   /* if (open --> write --> finish) use same dictionary size as lzip. */
   /* this does not save any memory. */
-  if( Mf_data_position( e->matchfinder ) == 0 &&
+  if( Mb_data_position( &e->lz_encoder_base->mb ) == 0 &&
       LZ_compress_total_out_size( e ) == Fh_size )
-    Mf_adjust_distionary_size( e->matchfinder );
+    {
+    Mb_adjust_distionary_size( &e->lz_encoder_base->mb );
+    Fh_set_dictionary_size( e->lz_encoder_base->renc.header,
+                            e->lz_encoder_base->mb.dictionary_size );
+    e->lz_encoder_base->renc.cb.buffer[5] = e->lz_encoder_base->renc.header[5];
+    }
   return 0;
   }
 
@@ -214,22 +214,16 @@ int LZ_compress_restart_member( struct LZ_Encoder * const e,
                                 const unsigned long long member_size )
   {
   if( !verify_encoder( e ) || e->fatal ) return -1;
-  if( !LZe_member_finished( e->lz_encoder ) )
+  if( !LZeb_member_finished( e->lz_encoder_base ) )
     { e->lz_errno = LZ_sequence_error; return -1; }
   if( member_size < min_dictionary_size )
     { e->lz_errno = LZ_bad_argument; return -1; }
 
-  e->partial_in_size += Mf_data_position( e->matchfinder );
-  e->partial_out_size += Re_member_position( &e->lz_encoder->renc );
-  Mf_reset( e->matchfinder );
+  e->partial_in_size += Mb_data_position( &e->lz_encoder_base->mb );
+  e->partial_out_size += Re_member_position( &e->lz_encoder_base->renc );
 
-  LZe_free( e->lz_encoder );
-  if( !LZe_init( e->lz_encoder, e->matchfinder, e->member_header, member_size ) )
-    {
-    LZe_free( e->lz_encoder ); free( e->lz_encoder ); e->lz_encoder = 0;
-    e->lz_errno = LZ_mem_error; e->fatal = true;
-    return -1;
-    }
+  if( e->lz_encoder ) LZe_reset( e->lz_encoder, member_size );
+  else FLZe_reset( e->flz_encoder, member_size );
   e->lz_errno = LZ_ok;
   return 0;
   }
@@ -238,15 +232,8 @@ int LZ_compress_restart_member( struct LZ_Encoder * const e,
 int LZ_compress_sync_flush( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) || e->fatal ) return -1;
-  if( e->flush_pending <= 0 && !Mf_flushing_or_end( e->matchfinder ) )
-    {
-    e->flush_pending = 2;	/* 2 consecutive markers guarantee decoding */
-    e->matchfinder->flushing = true;
-    if( !LZe_encode_member( e->lz_encoder ) )
-      { e->lz_errno = LZ_library_error; e->fatal = true; return -1; }
-    while( e->flush_pending > 0 && LZe_sync_flush( e->lz_encoder ) )
-      { if( --e->flush_pending <= 0 ) e->matchfinder->flushing = false; }
-    }
+  if( !Mb_flushing_or_end( &e->lz_encoder_base->mb ) )
+    e->lz_encoder_base->mb.flushing = true;
   return 0;
   }
 
@@ -254,12 +241,23 @@ int LZ_compress_sync_flush( struct LZ_Encoder * const e )
 int LZ_compress_read( struct LZ_Encoder * const e,
                       uint8_t * const buffer, const int size )
   {
+  int out_size = 0;
   if( !verify_encoder( e ) || e->fatal ) return -1;
-  if( !LZe_encode_member( e->lz_encoder ) )
-    { e->lz_errno = LZ_library_error; e->fatal = true; return -1; }
-  while( e->flush_pending > 0 && LZe_sync_flush( e->lz_encoder ) )
-    { if( --e->flush_pending <= 0 ) e->matchfinder->flushing = false; }
-  return Re_read_data( &e->lz_encoder->renc, buffer, size );
+  do {
+    if( ( e->flz_encoder && !FLZe_encode_member( e->flz_encoder ) ) ||
+        ( e->lz_encoder && !LZe_encode_member( e->lz_encoder ) ) )
+      { e->lz_errno = LZ_library_error; e->fatal = true; return -1; }
+    if( e->lz_encoder_base->mb.flushing &&
+        Mb_available_bytes( &e->lz_encoder_base->mb ) <= 0 &&
+        LZeb_sync_flush( e->lz_encoder_base ) )
+      e->lz_encoder_base->mb.flushing = false;
+    out_size += Re_read_data( &e->lz_encoder_base->renc,
+                              buffer + out_size, size - out_size );
+    }
+  while( e->lz_encoder_base->mb.flushing && out_size < size &&
+         Mb_enough_available_bytes( &e->lz_encoder_base->mb ) &&
+         Re_enough_free_bytes( &e->lz_encoder_base->renc ) );
+  return out_size;
   }
 
 
@@ -267,16 +265,14 @@ int LZ_compress_write( struct LZ_Encoder * const e,
                        const uint8_t * const buffer, const int size )
   {
   if( !verify_encoder( e ) || e->fatal ) return -1;
-  if( e->flush_pending > 0 || size < 0 ) return 0;
-  return Mf_write_data( e->matchfinder, buffer, size );
+  return Mb_write_data( &e->lz_encoder_base->mb, buffer, size );
   }
 
 
 int LZ_compress_write_size( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) || e->fatal ) return -1;
-  if( e->flush_pending > 0 ) return 0;
-  return Mf_free_bytes( e->matchfinder );
+  return Mb_free_bytes( &e->lz_encoder_base->mb );
   }
 
 
@@ -290,43 +286,43 @@ enum LZ_Errno LZ_compress_errno( struct LZ_Encoder * const e )
 int LZ_compress_finished( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) ) return -1;
-  return ( e->flush_pending <= 0 && Mf_finished( e->matchfinder ) &&
-           LZe_member_finished( e->lz_encoder ) );
+  return ( Mb_data_finished( &e->lz_encoder_base->mb ) &&
+           LZeb_member_finished( e->lz_encoder_base ) );
   }
 
 
 int LZ_compress_member_finished( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) ) return -1;
-  return LZe_member_finished( e->lz_encoder );
+  return LZeb_member_finished( e->lz_encoder_base );
   }
 
 
 unsigned long long LZ_compress_data_position( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) ) return 0;
-  return Mf_data_position( e->matchfinder );
+  return Mb_data_position( &e->lz_encoder_base->mb );
   }
 
 
 unsigned long long LZ_compress_member_position( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) ) return 0;
-  return Re_member_position( &e->lz_encoder->renc );
+  return Re_member_position( &e->lz_encoder_base->renc );
   }
 
 
 unsigned long long LZ_compress_total_in_size( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) ) return 0;
-  return e->partial_in_size + Mf_data_position( e->matchfinder );
+  return e->partial_in_size + Mb_data_position( &e->lz_encoder_base->mb );
   }
 
 
 unsigned long long LZ_compress_total_out_size( struct LZ_Encoder * const e )
   {
   if( !verify_encoder( e ) ) return 0;
-  return e->partial_out_size + Re_member_position( &e->lz_encoder->renc );
+  return e->partial_out_size + Re_member_position( &e->lz_encoder_base->renc );
   }
 
 
