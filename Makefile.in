@@ -7,6 +7,7 @@ INSTALL_DATA = $(INSTALL) -m 644
 INSTALL_DIR = $(INSTALL) -d -m 755
 LDCONFIG = /sbin/ldconfig
 SHELL = /bin/sh
+CAN_RUN_INSTALLINFO = $(SHELL) -c "install-info --version" > /dev/null 2>&1
 
 objs = carg_parser.o main.o
 
@@ -109,7 +110,9 @@ install-info :
 	if [ ! -d "$(DESTDIR)$(infodir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(infodir)" ; fi
 	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"*
 	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info "$(DESTDIR)$(infodir)/$(pkgname).info"
-	-install-info --info-dir="$(DESTDIR)$(infodir)" "$(DESTDIR)$(infodir)/$(pkgname).info"
+	-if $(CAN_RUN_INSTALLINFO) ; then \
+		install-info --info-dir="$(DESTDIR)$(infodir)" "$(DESTDIR)$(infodir)/$(pkgname).info" ; \
+	fi
 
 install-info-compress : install-info
 	lzip -v -9 "$(DESTDIR)$(infodir)/$(pkgname).info"
@@ -139,7 +142,9 @@ uninstall-bin :
 	-rm -f "$(DESTDIR)$(libdir)/lib$(libname).so.$(pkgversion)"
 
 uninstall-info :
-	-install-info --info-dir="$(DESTDIR)$(infodir)" --remove "$(DESTDIR)$(infodir)/$(pkgname).info"
+	-if $(CAN_RUN_INSTALLINFO) ; then \
+		install-info --info-dir="$(DESTDIR)$(infodir)" --remove "$(DESTDIR)$(infodir)/$(pkgname).info" ; \
+	fi
 	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"*
 
 uninstall-man :
@@ -161,6 +166,7 @@ dist : doc
 	  $(DISTNAME)/doc/$(pkgname).texi \
 	  $(DISTNAME)/testsuite/check.sh \
 	  $(DISTNAME)/testsuite/test.txt \
+	  $(DISTNAME)/testsuite/test2.txt \
 	  $(DISTNAME)/testsuite/test.txt.lz \
 	  $(DISTNAME)/testsuite/test_sync.lz \
 	  $(DISTNAME)/*.h \

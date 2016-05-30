@@ -6,8 +6,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 8 July 2015
-@set VERSION 1.7
+@set UPDATED 17 May 2016
+@set VERSION 1.8
 
 @dircategory Data Compression
 @direntry
@@ -50,7 +50,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009-2015 Antonio Diaz Diaz.
+Copyright @copyright{} 2009-2016 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission
 to copy, distribute and modify it.
@@ -78,7 +78,7 @@ program can repair bit-flip errors (one of the most common forms of data
 corruption) in lzip files, and provides data recovery capabilities,
 including error-checked merging of damaged copies of a file.
 @ifnothtml
-@ref{Data safety,,,lziprecover}.
+@xref{Data safety,,,lziprecover}.
 @end ifnothtml
 
 @item
@@ -269,7 +269,7 @@ should be freed with @samp{LZ_compress_close} to avoid memory leaks.
 @var{dictionary_size} sets the dictionary size to be used, in bytes.
 Valid values range from 4 KiB to 512 MiB. Note that dictionary sizes are
 quantized. If the specified size does not match one of the valid sizes,
-it will be rounded upwards by adding up to (@var{dictionary_size} / 16)
+it will be rounded upwards by adding up to (@var{dictionary_size} / 8)
 to it.
 
 @var{match_len_limit} sets the match length limit in bytes. Valid values
@@ -307,7 +307,7 @@ After all the produced compressed data have been read with
 
 
 @deftypefun int LZ_compress_restart_member ( struct LZ_Encoder * const @var{encoder}, const unsigned long long @var{member_size} )
-Use this function to start a new member, in a multi-member data stream.
+Use this function to start a new member in a multimember data stream.
 Call this function only after @samp{LZ_compress_member_finished}
 indicates that the current member has been fully read (with the
 @samp{LZ_compress_read} function).
@@ -370,7 +370,7 @@ can be safely called. Otherwise it returns 0.
 
 
 @deftypefun int LZ_compress_member_finished ( struct LZ_Encoder * const @var{encoder} )
-Returns 1 if the current member, in a multi-member data stream, has been
+Returns 1 if the current member, in a multimember data stream, has been
 fully read and @samp{LZ_compress_restart_member} can be safely called.
 Otherwise it returns 0.
 @end deftypefun
@@ -560,7 +560,7 @@ this return value only tells you that an error has occurred. To find out
 what kind of error it was, you need to verify the error code by calling
 @samp{LZ_(de)compress_errno}.
 
-Library functions do not change the value returned by
+Library functions don't change the value returned by
 @samp{LZ_(de)compress_errno} when they succeed; thus, the value returned
 by @samp{LZ_(de)compress_errno} after a successful call is not
 necessarily LZ_ok, and you should not use @samp{LZ_(de)compress_errno}
@@ -592,8 +592,9 @@ finished.
 @end deftypevr
 
 @deftypevr Constant {enum LZ_Errno} LZ_header_error
-Reading of member header failed. If this happens at the end of the data
-stream it may indicate trailing garbage.
+An invalid member header (one with the wrong magic bytes) was read. If
+this happens at the end of the data stream it may indicate trailing
+data.
 @end deftypevr
 
 @deftypevr Constant {enum LZ_Errno} LZ_unexpected_eof
@@ -657,14 +658,14 @@ with no additional information before, between, or after them.
 Each member has the following structure:
 @verbatim
 +--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-| ID string | VN | DS | Lzma stream | CRC32 |   Data size   |  Member size  |
+| ID string | VN | DS | LZMA stream | CRC32 |   Data size   |  Member size  |
 +--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 @end verbatim
 
 All multibyte values are stored in little endian order.
 
 @table @samp
-@item ID string
+@item ID string (the "magic" bytes)
 A four byte string, identifying the lzip format, with the value "LZIP"
 (0x4C, 0x5A, 0x49, 0x50).
 
@@ -681,8 +682,8 @@ from the base size to obtain the dictionary size.@*
 Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB@*
 Valid values for dictionary size range from 4 KiB to 512 MiB.
 
-@item Lzma stream
-The lzma stream, finished by an end of stream marker. Uses default
+@item LZMA stream
+The LZMA stream, finished by an end of stream marker. Uses default
 values for encoder properties.
 @ifnothtml
 @xref{Stream format,,,lzip},
@@ -704,7 +705,7 @@ Size of the uncompressed original data.
 @item Member size (8 bytes)
 Total size of the member, including header and trailer. This field acts
 as a distributed index, allows the verification of stream integrity, and
-facilitates safe recovery of undamaged members from multi-member files.
+facilitates safe recovery of undamaged members from multimember files.
 
 @end table
 
@@ -785,7 +786,7 @@ Example 4: Decompression using LZ_decompress_write_size.
 
 @sp 1
 @noindent
-Example 5: Multi-member compression (@var{member_size} < total output).
+Example 5: Multimember compression (@var{member_size} < total output).
 
 @example
  1) LZ_compress_open
@@ -802,7 +803,7 @@ Example 5: Multi-member compression (@var{member_size} < total output).
 
 @sp 1
 @noindent
-Example 6: Multi-member compression (user-restarted members).
+Example 6: Multimember compression (user-restarted members).
 
 @example
  1) LZ_compress_open
@@ -821,7 +822,7 @@ Example 6: Multi-member compression (user-restarted members).
 
 @sp 1
 @noindent
-Example 7: Decompression with automatic removal of leading garbage.
+Example 7: Decompression with automatic removal of leading data.
 
 @example
 1) LZ_decompress_open

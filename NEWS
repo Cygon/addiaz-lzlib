@@ -1,16 +1,16 @@
-Changes in version 1.7:
+Changes in version 1.8:
 
-The fast encoder, which produces a compression speed and ratio
-comparable to those of gzip, has been ported from lzip.
+The test of the value remaining in the range decoder has been removed.
+(After extensive testing it has been found useless to detect corruption
+in the decompressed data. Eliminating it reduces the number of false
+positives for corruption and makes error detection more accurate).
 
-The option "-0" has been ported from lzip to minilzip.
+The option "-a, --trailing-error", which makes minilzip exit with error
+status 2 if any remaining input is detected after decompressing the last
+member, has been added.
 
-If all the data to be compressed are written in advance, lzlib will
-automatically adjust the header of the compressed data to use the
-smallest possible dictionary size. This feature reduces the amount of
-memory needed for decompression and allows minilzip to produce identical
-compressed output as lzip.
+When decompressing with minilzip, the file specified with the '--output'
+option is now deleted if the input is a terminal.
 
-The targets "install-compress", "install-strip-compress",
-"install-info-compress" and "install-man-compress" have been added to
-the Makefile.
+A harmless check failure on Windows, caused by the failed comparison of
+a message in text mode, has been fixed.

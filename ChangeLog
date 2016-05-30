@@ -1,3 +1,15 @@
+2016-05-17  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 1.8 released.
+	* decoder.c (LZd_verify_trailer): Removed test of final code.
+	* main.c: Added new option '-a, --trailing-error'.
+	* main.c (main): Delete '--output' file if infd is a terminal.
+	* main.c (main): Don't use stdin more than once.
+	* configure: Avoid warning on some shells when testing for gcc.
+	* Makefile.in: Detect the existence of install-info.
+	* testsuite/check.sh: A POSIX shell is required to run the tests.
+	* testsuite/check.sh: Don't check error messages.
+
 2015-07-08  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 1.7 released.
@@ -153,7 +165,7 @@
 	* Version 0.1 released.
 
 
-Copyright (C) 2009-2015 Antonio Diaz Diaz.
+Copyright (C) 2009-2016 Antonio Diaz Diaz.
 
 This file is a collection of facts, and thus it is not copyrightable,
 but just in case, you have unlimited permission to copy, distribute and

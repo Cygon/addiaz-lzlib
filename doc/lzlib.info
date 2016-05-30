@@ -11,7 +11,7 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 1.7, 8 July 2015).
+This manual is for Lzlib (version 1.8, 17 May 2016).
 
 * Menu:
 
@@ -29,7 +29,7 @@ This manual is for Lzlib (version 1.7, 8 July 2015).
 * Concept index::               Index of concepts
 
 
-   Copyright (C) 2009-2015 Antonio Diaz Diaz.
+   Copyright (C) 2009-2016 Antonio Diaz Diaz.
 
    This manual is free documentation: you have unlimited permission to
 copy, distribute and modify it.
@@ -53,7 +53,7 @@ availability:
      recovery means. The lziprecover program can repair bit-flip errors
      (one of the most common forms of data corruption) in lzip files,
      and provides data recovery capabilities, including error-checked
-     merging of damaged copies of a file.  *note Data safety:
+     merging of damaged copies of a file.  *Note Data safety:
      (lziprecover)Data safety.
 
    * The lzip format is as simple as possible (but not simpler). The
@@ -236,7 +236,7 @@ calling 'LZ_compress_errno' before using it.
      Valid values range from 4 KiB to 512 MiB. Note that dictionary
      sizes are quantized. If the specified size does not match one of
      the valid sizes, it will be rounded upwards by adding up to
-     (DICTIONARY_SIZE / 16) to it.
+     (DICTIONARY_SIZE / 8) to it.
 
      MATCH_LEN_LIMIT sets the match length limit in bytes. Valid values
      range from 5 to 273. Larger values usually give better compression
@@ -270,7 +270,7 @@ calling 'LZ_compress_errno' before using it.
 
  -- Function: int LZ_compress_restart_member ( struct LZ_Encoder *
           const ENCODER, const unsigned long long MEMBER_SIZE )
-     Use this function to start a new member, in a multi-member data
+     Use this function to start a new member in a multimember data
      stream.  Call this function only after
      'LZ_compress_member_finished' indicates that the current member
      has been fully read (with the 'LZ_compress_read' function).
@@ -325,8 +325,8 @@ calling 'LZ_compress_errno' before using it.
 
  -- Function: int LZ_compress_member_finished ( struct LZ_Encoder *
           const ENCODER )
-     Returns 1 if the current member, in a multi-member data stream,
-     has been fully read and 'LZ_compress_restart_member' can be safely
+     Returns 1 if the current member, in a multimember data stream, has
+     been fully read and 'LZ_compress_restart_member' can be safely
      called.  Otherwise it returns 0.
 
  -- Function: unsigned long long LZ_compress_data_position ( struct
@@ -492,7 +492,7 @@ this return value only tells you that an error has occurred. To find out
 what kind of error it was, you need to verify the error code by calling
 'LZ_(de)compress_errno'.
 
-   Library functions do not change the value returned by
+   Library functions don't change the value returned by
 'LZ_(de)compress_errno' when they succeed; thus, the value returned by
 'LZ_(de)compress_errno' after a successful call is not necessarily
 LZ_ok, and you should not use 'LZ_(de)compress_errno' to determine
@@ -520,8 +520,9 @@ whether a call failed. If the call failed, then you can examine
      finished.
 
  -- Constant: enum LZ_Errno LZ_header_error
-     Reading of member header failed. If this happens at the end of the
-     data stream it may indicate trailing garbage.
+     An invalid member header (one with the wrong magic bytes) was
+     read. If this happens at the end of the data stream it may
+     indicate trailing data.
 
  -- Constant: enum LZ_Errno LZ_unexpected_eof
      The end of the data stream was reached in the middle of a member.
@@ -579,12 +580,12 @@ with no additional information before, between, or after them.
 
    Each member has the following structure:
 +--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-| ID string | VN | DS | Lzma stream | CRC32 |   Data size   |  Member size  |
+| ID string | VN | DS | LZMA stream | CRC32 |   Data size   |  Member size  |
 +--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
    All multibyte values are stored in little endian order.
 
-'ID string'
+'ID string (the "magic" bytes)'
      A four byte string, identifying the lzip format, with the value
      "LZIP" (0x4C, 0x5A, 0x49, 0x50).
 
@@ -602,8 +603,8 @@ with no additional information before, between, or after them.
      Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB
      Valid values for dictionary size range from 4 KiB to 512 MiB.
 
-'Lzma stream'
-     The lzma stream, finished by an end of stream marker. Uses default
+'LZMA stream'
+     The LZMA stream, finished by an end of stream marker. Uses default
      values for encoder properties.  *Note Stream format: (lzip)Stream
      format, for a complete description.
      Lzip only uses the LZMA marker '2' ("End Of Stream" marker). Lzlib
@@ -619,7 +620,7 @@ with no additional information before, between, or after them.
      Total size of the member, including header and trailer. This field
      acts as a distributed index, allows the verification of stream
      integrity, and facilitates safe recovery of undamaged members from
-     multi-member files.
+     multimember files.
 
 
 
@@ -688,7 +689,7 @@ Example 4: Decompression using LZ_decompress_write_size.
      7) LZ_decompress_close
 
 
-Example 5: Multi-member compression (MEMBER_SIZE < total output).
+Example 5: Multimember compression (MEMBER_SIZE < total output).
 
       1) LZ_compress_open
       2) go to step 5 if LZ_compress_write_size returns 0
@@ -702,7 +703,7 @@ Example 5: Multi-member compression (MEMBER_SIZE < total output).
      10) LZ_compress_close
 
 
-Example 6: Multi-member compression (user-restarted members).
+Example 6: Multimember compression (user-restarted members).
 
       1) LZ_compress_open
       2) LZ_compress_write
@@ -718,7 +719,7 @@ Example 6: Multi-member compression (user-restarted members).
      12) LZ_compress_close
 
 
-Example 7: Decompression with automatic removal of leading garbage.
+Example 7: Decompression with automatic removal of leading data.
 
      1) LZ_decompress_open
      2) LZ_decompress_sync_to_member
@@ -790,13 +791,13 @@ Node: Library version5918
 Node: Buffering6563
 Node: Parameter limits7783
 Node: Compression functions8742
-Node: Decompression functions15286
-Node: Error codes21454
-Node: Error messages23393
-Node: Data format23972
-Node: Examples26518
-Node: Problems30604
-Node: Concept index31176
+Node: Decompression functions15282
+Node: Error codes21450
+Node: Error messages23425
+Node: Data format24004
+Node: Examples26569
+Node: Problems30650
+Node: Concept index31222
 
 End Tag Table
 

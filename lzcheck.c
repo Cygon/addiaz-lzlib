@@ -1,5 +1,5 @@
 /*  Lzcheck - Test program for the lzlib library
-    Copyright (C) 2009-2015 Antonio Diaz Diaz.
+    Copyright (C) 2009-2016 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
@@ -95,7 +95,7 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
       if( out_size != in_size || memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d.\n",
+        fprintf( stderr, "lzcheck: Sync error at pos %d  in_size = %d, out_size = %d\n",
                  l, in_size, out_size );
         for( i = 0; i < in_size; ++i )
           fputc( in_buffer[l+i], stderr );
@@ -167,8 +167,8 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
       if( out_size != in_size || memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        fprintf( stderr, "lzcheck: Sync error at pos %d. in_size = %d, out_size = %d.\n",
-                 l, in_size, out_size );
+        fprintf( stderr, "lzcheck: Sync error at pos %d  in_size = %d, out_size = %d, leading garbage = %d\n",
+                 l, in_size, out_size, leading_garbage );
         for( i = 0; i < in_size; ++i )
           fputc( in_buffer[l+i], stderr );
         if( in_buffer[l+in_size-1] != '\n' )
@@ -231,7 +231,7 @@ int main( const int argc, const char * const argv[] )
     }
 /*  fprintf( stderr, "lzcheck: Testing file '%s'\n", argv[1] ); */
 
-  retval = lzcheck( file, 65535 );
+  retval = lzcheck( file, 65535 );	/* 65535,16 chooses fast encoder */
   if( retval == 0 )
     { rewind( file ); retval = lzcheck( file, 1 << 20 ); }
   fclose( file );
