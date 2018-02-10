@@ -1,12 +1,32 @@
-Changes in version 1.9:
+Changes in version 1.10:
 
-Compression time of option '-0' has been reduced by 3%.
+The function 'LZ_compress_finish' now adjusts the dictionary size for
+each member.
 
-Compression time of options '-1' to '-9' has been reduced by 1%.
+The option '--loose-trailing', has been added to minilzip.
 
-Decompression time has been reduced by 3%.
+The test used by lzlib to discriminate trailing data from a corrupt
+header in multimember or concatenated files has been improved to a
+Hamming distance (HD) of 3, and the 3 bit flips must happen in different
+magic bytes for the test to fail. As a consequence, lzlib now returns a
+data error when some kinds of files are appended to a lzip file as
+trailing data.
+The '--loose-trailing' option of minilzip can be used to ignore such
+trailing data when decompressing.
+Lziprecover can be used to remove conflicting trailing data from a file.
 
-In test mode, minilzip now continues checking the rest of the files if
-any input file is a terminal.
+Option '-S, --volume-size' of minilzip now keeps input files unchanged.
 
-The license of the library has been changed to "2-clause BSD".
+The 'bits/byte' ratio has been replaced with the inverse compression
+ratio in the output of minilzip.
+
+minilzip now shows a final diagnostic at verbosity level 1 (-v) or
+higher if any file fails the test when testing multiple files.
+
+minilzip no longer adds a second '.lz' extension to the argument of '-o'
+if it already ends in '.lz' or '.tlz'.
+
+minilzip now shows the dictionary size at verbosity level 4 (-vvvv) when
+decompressing or testing.
+
+The new chapter 'Invoking minilzip' has been added to the manual.

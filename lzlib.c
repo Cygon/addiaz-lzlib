@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2017 Antonio Diaz Diaz.
+    Copyright (C) 2009-2018 Antonio Diaz Diaz.
 
     This library is free software. Redistribution and use in source and
     binary forms, with or without modification, are permitted provided
@@ -193,7 +193,7 @@ int LZ_compress_finish( struct LZ_Encoder * const e )
   /* if (open --> write --> finish) use same dictionary size as lzip. */
   /* this does not save any memory. */
   if( Mb_data_position( &e->lz_encoder_base->mb ) == 0 &&
-      LZ_compress_total_out_size( e ) == Fh_size )
+      Re_member_position( &e->lz_encoder_base->renc ) == Fh_size )
     {
     Mb_adjust_dictionary_size( &e->lz_encoder_base->mb );
     Fh_set_dictionary_size( e->lz_encoder_base->renc.header,
@@ -417,7 +417,7 @@ int LZ_decompress_read( struct LZ_Decoder * const d,
         !d->rdec->at_stream_end ) return 0;
     if( Rd_finished( d->rdec ) && !d->first_header ) return 0;
     rd = Rd_read_data( d->rdec, d->member_header, Fh_size );
-    if( Rd_finished( d->rdec ) )
+    if( Rd_finished( d->rdec ) )		/* End Of File */
       {
       if( rd <= 0 || Fh_verify_prefix( d->member_header, rd ) )
         d->lz_errno = LZ_unexpected_eof;
@@ -431,7 +431,12 @@ int LZ_decompress_read( struct LZ_Decoder * const d,
       /* unreading the header prevents sync_to_member from skipping a member
          if leading garbage is shorter than a full header; "lgLZIP\x01\x0C" */
       if( Rd_unread_data( d->rdec, rd ) )
-        d->lz_errno = LZ_header_error;
+        {
+        if( d->first_header || !Fh_verify_corrupt( d->member_header ) )
+          d->lz_errno = LZ_header_error;
+        else
+          d->lz_errno = LZ_data_error;		/* corrupt header */
+        }
       else
         d->lz_errno = LZ_library_error;
       d->fatal = true;
@@ -440,7 +445,10 @@ int LZ_decompress_read( struct LZ_Decoder * const d,
     if( !Fh_verify_version( d->member_header ) ||
         !isvalid_ds( Fh_get_dictionary_size( d->member_header ) ) )
       {
-      d->lz_errno = LZ_data_error;	/* bad version or bad dict size */
+      if( Rd_unread_data( d->rdec, 1 + !Fh_verify_version( d->member_header ) ) )
+        d->lz_errno = LZ_data_error;	/* bad version or bad dict size */
+      else
+        d->lz_errno = LZ_library_error;
       d->fatal = true;
       return -1;
       }
@@ -469,10 +477,10 @@ int LZ_decompress_read( struct LZ_Decoder * const d,
   result = LZd_decode_member( d->lz_decoder );
   if( result != 0 )
     {
-    if( result == 2 )
-      { d->lz_errno = LZ_unexpected_eof;
-        d->rdec->member_position += Cb_used_bytes( &d->rdec->cb );
-        Cb_reset( &d->rdec->cb ); }
+    if( result == 2 )			/* set position at EOF */
+      { d->rdec->member_position += Cb_used_bytes( &d->rdec->cb );
+        Cb_reset( &d->rdec->cb );
+        d->lz_errno = LZ_unexpected_eof; }
     else if( result == 5 ) d->lz_errno = LZ_library_error;
     else d->lz_errno = LZ_data_error;
     d->fatal = true;

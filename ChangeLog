@@ -1,3 +1,16 @@
+2018-02-07  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 1.10 released.
+	* LZ_compress_finish now adjusts dictionary size for each member.
+	* lzlib.c (LZ_decompress_read): Detect corrupt header with HD=3.
+	* main.c: Added new option '--loose-trailing'.
+	* main.c (main): Option '-S, --volume-size' now keeps input files.
+	* main.c: Replaced 'bits/byte' with inverse compression ratio.
+	* main.c: Show final diagnostic when testing multiple files.
+	* main.c: Do not add a second .lz extension to the arg of -o.
+	* main.c: Show dictionary size at verbosity level 4 (-vvvv).
+	* lzlib.texi: Added chapter 'Invoking minilzip'.
+
 2017-04-11  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 1.9 released.
@@ -10,14 +23,15 @@
 2016-05-17  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 1.8 released.
+	* lzlib.h: Define LZ_API_VERSION to 1.
 	* decoder.c (LZd_verify_trailer): Removed test of final code.
 	* main.c: Added new option '-a, --trailing-error'.
 	* main.c (main): Delete '--output' file if infd is a terminal.
 	* main.c (main): Don't use stdin more than once.
 	* configure: Avoid warning on some shells when testing for gcc.
 	* Makefile.in: Detect the existence of install-info.
-	* testsuite/check.sh: A POSIX shell is required to run the tests.
-	* testsuite/check.sh: Don't check error messages.
+	* check.sh: A POSIX shell is required to run the tests.
+	* check.sh: Don't check error messages.
 
 2015-07-08  Antonio Diaz Diaz  <antonio@gnu.org>
 
@@ -78,7 +92,7 @@
 	  reduces compression time for large values of '--match-length'
 	  by up to 6%.
 	* main.cc: Added new option '-F, --recompress'.
-	* Makefile.in: 'make install' no more tries to run
+	* Makefile.in: 'make install' no longer tries to run
 	  '/sbin/ldconfig' on systems lacking it.
 
 2011-01-03  Antonio Diaz Diaz  <ant_diaz@teleline.es>
@@ -129,14 +143,14 @@
 	  allowing LZ_compress_restart_member to restart a finished stream.
 	* lzlib.cc: Accept only query or close operations after a fatal
 	  error has occurred.
-	* Shared version of lzlib is no more built by default.
-	* testsuite/check.sh: Use 'test1' instead of 'COPYING' for testing.
+	* Shared version of lzlib is no longer built by default.
+	* check.sh: Use 'test1' instead of 'COPYING' for testing.
 
 2009-10-20  Antonio Diaz Diaz  <ant_diaz@teleline.es>
 
 	* Version 0.7 released.
 	* Compression time has been reduced by 4%.
-	* testsuite/check.sh: Removed -9 to run in less than 256MiB of RAM.
+	* check.sh: Removed -9 to run in less than 256MiB of RAM.
 	* lzcheck.cc: Read files of any size up to 2^63 bytes.
 
 2009-09-02  Antonio Diaz Diaz  <ant_diaz@teleline.es>
@@ -174,7 +188,7 @@
 	* Version 0.1 released.
 
 
-Copyright (C) 2009-2017 Antonio Diaz Diaz.
+Copyright (C) 2009-2018 Antonio Diaz Diaz.
 
 This file is a collection of facts, and thus it is not copyrightable,
 but just in case, you have unlimited permission to copy, distribute and

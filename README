@@ -87,7 +87,7 @@ range encoding), Igor Pavlov (for putting all the above together in
 LZMA), and Julian Seward (for bzip2's CLI).
 
 
-Copyright (C) 2009-2017 Antonio Diaz Diaz.
+Copyright (C) 2009-2018 Antonio Diaz Diaz.
 
 This file is free documentation: you have unlimited permission to copy,
 distribute and modify it.

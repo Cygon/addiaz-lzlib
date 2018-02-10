@@ -1,19 +1,20 @@
 /*  Lzcheck - Test program for the lzlib library
-    Copyright (C) 2009-2017 Antonio Diaz Diaz.
+    Copyright (C) 2009-2018 Antonio Diaz Diaz.
 
     This program is free software: you have unlimited permission
     to copy, distribute and modify it.
 
     Usage is:
-      lzcheck filename.txt
+      lzcheck filename.txt...
 
-    This program reads the specified text file and then compresses it,
+    This program reads each specified text file and then compresses it,
     line by line, to test the flushing mechanism and the member
     restart/reset/sync functions.
 */
 
 #define _FILE_OFFSET_BITS 64
 
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -32,6 +33,15 @@ enum { buffer_size = 32768 };
 uint8_t in_buffer[buffer_size];
 uint8_t mid_buffer[buffer_size];
 uint8_t out_buffer[buffer_size];
+
+
+void show_line( const uint8_t * const buffer, const int size )
+  {
+  int i;
+  for( i = 0; i < size; ++i )
+    fputc( isprint( buffer[i] ) ? buffer[i] : '.', stderr );
+  fputc( '\n', stderr );
+  }
 
 
 int lzcheck( FILE * const file, const int dictionary_size )
@@ -66,7 +76,7 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
   while( retval <= 1 )
     {
-    int i, l, r;
+    int l, r;
     const int read_size = fread( in_buffer, 1, buffer_size, file );
     if( read_size <= 0 ) break;			/* end of file */
 
@@ -95,15 +105,11 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
       if( out_size != in_size || memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        fprintf( stderr, "lzcheck: Sync error at pos %d  in_size = %d, out_size = %d\n",
+        fprintf( stderr, "lzcheck: Sync error at pos %d  in_size = %d, "
+                         "out_size = %d\n",
                  l, in_size, out_size );
-        for( i = 0; i < in_size; ++i )
-          fputc( in_buffer[l+i], stderr );
-        if( in_buffer[l+in_size-1] != '\n' )
-          fputc( '\n', stderr );
-        for( i = 0; i < out_size; ++i )
-          fputc( out_buffer[i], stderr );
-        fputc( '\n', stderr );
+        show_line( in_buffer + l, in_size );
+        show_line( out_buffer, out_size );
         retval = 1;
         }
       }
@@ -113,7 +119,8 @@ int lzcheck( FILE * const file, const int dictionary_size )
     {
     rewind( file );
     if( LZ_compress_finish( encoder ) < 0 ||
-        LZ_decompress_write( decoder, mid_buffer, LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
+        LZ_decompress_write( decoder, mid_buffer,
+          LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
         LZ_decompress_read( decoder, out_buffer, buffer_size ) != 0 ||
         LZ_compress_restart_member( encoder, member_size ) < 0 )
       {
@@ -125,7 +132,7 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
   while( retval <= 1 )
     {
-    int i, l, r, size;
+    int l, r, size;
     const int read_size = fread( in_buffer, 1, buffer_size / 2, file );
     if( read_size <= 0 ) break;			/* end of file */
 
@@ -133,7 +140,7 @@ int lzcheck( FILE * const file, const int dictionary_size )
       {
       int leading_garbage, in_size, mid_size, out_size;
       while( r < read_size && in_buffer[r-1] != '\n' ) ++r;
-      leading_garbage = (l == 0) ? min( r, read_size / 2 ) : 0;
+      leading_garbage = (l == 0) ? min( r, read_size ) / 2 : 0;
       in_size = LZ_compress_write( encoder, in_buffer + l, r - l );
       if( in_size < r - l ) r = l + in_size;
       LZ_compress_sync_flush( encoder );
@@ -167,22 +174,19 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
       if( out_size != in_size || memcmp( in_buffer + l, out_buffer, out_size ) )
         {
-        fprintf( stderr, "lzcheck: Sync error at pos %d  in_size = %d, out_size = %d, leading garbage = %d\n",
+        fprintf( stderr, "lzcheck: Sync error at pos %d  in_size = %d, "
+                         "out_size = %d, leading garbage = %d\n",
                  l, in_size, out_size, leading_garbage );
-        for( i = 0; i < in_size; ++i )
-          fputc( in_buffer[l+i], stderr );
-        if( in_buffer[l+in_size-1] != '\n' )
-          fputc( '\n', stderr );
-        for( i = 0; i < out_size; ++i )
-          fputc( out_buffer[i], stderr );
-        fputc( '\n', stderr );
+        show_line( in_buffer + l, in_size );
+        show_line( out_buffer, out_size );
         retval = 1;
         }
       }
     if( retval >= 3 ) break;
 
     if( LZ_compress_finish( encoder ) < 0 ||
-        LZ_decompress_write( decoder, mid_buffer, LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
+        LZ_decompress_write( decoder, mid_buffer,
+          LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
         LZ_decompress_read( decoder, out_buffer, buffer_size ) != 0 ||
         LZ_decompress_reset( decoder ) < 0 ||
         LZ_compress_restart_member( encoder, member_size ) < 0 )
@@ -195,7 +199,8 @@ int lzcheck( FILE * const file, const int dictionary_size )
     size = min( 100, read_size );
     if( LZ_compress_write( encoder, in_buffer, size ) != size ||
         LZ_compress_finish( encoder ) < 0 ||
-        LZ_decompress_write( decoder, mid_buffer, LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
+        LZ_decompress_write( decoder, mid_buffer,
+          LZ_compress_read( encoder, mid_buffer, buffer_size ) ) < 0 ||
         LZ_decompress_read( decoder, out_buffer, 0 ) != 0 ||
         LZ_decompress_sync_to_member( decoder ) < 0 ||
         LZ_compress_restart_member( encoder, member_size ) < 0 )
@@ -214,26 +219,34 @@ int lzcheck( FILE * const file, const int dictionary_size )
 
 int main( const int argc, const char * const argv[] )
   {
-  FILE * file;
-  int retval;
+  int retval = 0, i;
+  int open_failures = 0;
+  const bool verbose = ( argc > 2 );
 
   if( argc < 2 )
     {
-    fputs( "Usage: lzcheck filename.txt\n", stderr );
+    fputs( "Usage: lzcheck filename.txt...\n", stderr );
     return 1;
     }
 
-  file = fopen( argv[1], "rb" );
-  if( !file )
+  for( i = 1; i < argc && retval == 0; ++ i )
     {
-    fprintf( stderr, "lzcheck: Can't open file '%s' for reading.\n", argv[1] );
-    return 1;
-    }
-/*  fprintf( stderr, "lzcheck: Testing file '%s'\n", argv[1] ); */
+    FILE * file = fopen( argv[i], "rb" );
+    if( !file )
+      {
+      fprintf( stderr, "lzcheck: Can't open file '%s' for reading.\n", argv[i] );
+      ++open_failures; continue;
+      }
+    if( verbose ) fprintf( stderr, "  Testing file '%s'\n", argv[i] );
 
-  retval = lzcheck( file, 65535 );	/* 65535,16 chooses fast encoder */
-  if( retval == 0 )
-    { rewind( file ); retval = lzcheck( file, 1 << 20 ); }
-  fclose( file );
+    retval = lzcheck( file, 65535 );	/* 65535,16 chooses fast encoder */
+    if( retval == 0 )
+      { rewind( file ); retval = lzcheck( file, 1 << 20 ); }
+    fclose( file );
+    }
+  if( open_failures > 0 && verbose )
+    fprintf( stderr, "lzcheck: warning: %d %s failed to open.\n",
+             open_failures, ( open_failures == 1 ) ? "file" : "files" );
+  if( retval == 0 && open_failures ) retval = 1;
   return retval;
   }

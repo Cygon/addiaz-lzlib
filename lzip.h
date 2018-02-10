@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2017 Antonio Diaz Diaz.
+    Copyright (C) 2009-2018 Antonio Diaz Diaz.
 
     This library is free software. Redistribution and use in source and
     binary forms, with or without modification, are permitted provided
@@ -204,12 +204,21 @@ static inline void Fh_set_magic( File_header data )
 static inline bool Fh_verify_magic( const File_header data )
   { return ( memcmp( data, magic_string, 4 ) == 0 ); }
 
-/* detect truncated header */
-static inline bool Fh_verify_prefix( const File_header data, const int size )
+/* detect (truncated) header */
+static inline bool Fh_verify_prefix( const File_header data, const int sz )
   {
-  int i; for( i = 0; i < size && i < 4; ++i )
+  int i; for( i = 0; i < sz && i < 4; ++i )
     if( data[i] != magic_string[i] ) return false;
-  return ( size > 0 );
+  return ( sz > 0 );
+  }
+
+/* detect corrupt header */
+static inline bool Fh_verify_corrupt( const File_header data )
+  {
+  int matches = 0;
+  int i; for( i = 0; i < 4; ++i )
+    if( data[i] == magic_string[i] ) ++matches;
+  return ( matches > 1 && matches < 4 );
   }
 
 static inline uint8_t Fh_version( const File_header data )

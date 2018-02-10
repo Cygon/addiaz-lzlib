@@ -11,25 +11,26 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 1.9, 11 April 2017).
+This manual is for Lzlib (version 1.10, 7 February 2018).
 
 * Menu:
 
-* Introduction::                Purpose and features of lzlib
-* Library version::             Checking library version
-* Buffering::                   Sizes of lzlib's buffers
-* Parameter limits::            Min / max values for some parameters
-* Compression functions::       Descriptions of the compression functions
-* Decompression functions::     Descriptions of the decompression functions
-* Error codes::                 Meaning of codes returned by functions
-* Error messages::              Error messages corresponding to error codes
-* Data format::                 Detailed format of the compressed data
-* Examples::                    A small tutorial with examples
-* Problems::                    Reporting bugs
-* Concept index::               Index of concepts
+* Introduction::             Purpose and features of lzlib
+* Library version::          Checking library version
+* Buffering::                Sizes of lzlib's buffers
+* Parameter limits::         Min / max values for some parameters
+* Compression functions::    Descriptions of the compression functions
+* Decompression functions::  Descriptions of the decompression functions
+* Error codes::              Meaning of codes returned by functions
+* Error messages::           Error messages corresponding to error codes
+* Invoking minilzip::        Command line interface of the test program
+* Data format::              Detailed format of the compressed data
+* Examples::                 A small tutorial with examples
+* Problems::                 Reporting bugs
+* Concept index::            Index of concepts
 
 
-   Copyright (C) 2009-2017 Antonio Diaz Diaz.
+   Copyright (C) 2009-2018 Antonio Diaz Diaz.
 
    This manual is free documentation: you have unlimited permission to
 copy, distribute and modify it.
@@ -50,7 +51,7 @@ archiving, taking into account both data integrity and decoder
 availability:
 
    * The lzip format provides very safe integrity checking and some data
-     recovery means. The lziprecover program can repair bit-flip errors
+     recovery means. The lziprecover program can repair bit flip errors
      (one of the most common forms of data corruption) in lzip files,
      and provides data recovery capabilities, including error-checked
      merging of damaged copies of a file.  *Note Data safety:
@@ -170,8 +171,9 @@ minimum sizes:
 
    * Input compression buffer. Written to by the 'LZ_compress_write'
      function. For the normal variant of LZMA, its size is two times
-     the dictionary size set with the 'LZ_compress_open' function or 64
-     KiB, whichever is larger. For the fast variant, its size is 1 MiB.
+     the dictionary size set with the 'LZ_compress_open' function or
+     64 KiB, whichever is larger. For the fast variant, its size is
+     1 MiB.
 
    * Output compression buffer. Read from by the 'LZ_compress_read'
      function. Its size is 64 KiB.
@@ -326,6 +328,7 @@ calling 'LZ_compress_errno' before using it.
           ENCODER )
      Returns 1 if all the data have been read and 'LZ_compress_close'
      can be safely called. Otherwise it returns 0.
+     'LZ_compress_finished' implies 'LZ_compress_member_finished'.
 
  -- Function: int LZ_compress_member_finished ( struct LZ_Encoder *
           const ENCODER )
@@ -532,14 +535,19 @@ whether a call failed. If the call failed, then you can examine
      The end of the data stream was reached in the middle of a member.
 
  -- Constant: enum LZ_Errno LZ_data_error
-     The data stream is corrupt.
+     The data stream is corrupt. If 'LZ_decompress_member_position' is 6
+     or less, it indicates either a format version not supported, an
+     invalid dictionary size, a corrupt header in a multimember data
+     stream, or trailing data too similar to a valid lzip header.
+     Lziprecover can be used to remove conflicting trailing data from a
+     file.
 
  -- Constant: enum LZ_Errno LZ_library_error
      A bug was detected in the library. Please, report it (*note
      Problems::).
 
 
-File: lzlib.info,  Node: Error messages,  Next: Data format,  Prev: Error codes,  Up: Top
+File: lzlib.info,  Node: Error messages,  Next: Invoking minilzip,  Prev: Error codes,  Up: Top
 
 8 Error messages
 ****************
@@ -555,10 +563,198 @@ File: lzlib.info,  Node: Error messages,  Next: Data format,  Prev: Error codes,
      'LZ_(de)compress_errno'.
 
 
-File: lzlib.info,  Node: Data format,  Next: Examples,  Prev: Error messages,  Up: Top
+File: lzlib.info,  Node: Invoking minilzip,  Next: Data format,  Prev: Error messages,  Up: Top
 
-9 Data format
-*************
+9 Invoking minilzip
+*******************
+
+The format for running minilzip is:
+
+     minilzip [OPTIONS] [FILES]
+
+'-' used as a FILE argument means standard input. It can be mixed with
+other FILES and is read just once, the first time it appears in the
+command line.
+
+   minilzip supports the following options:
+
+'-h'
+'--help'
+     Print an informative help message describing the options and exit.
+
+'-V'
+'--version'
+     Print the version number of minilzip on the standard output and
+     exit.
+
+'-a'
+'--trailing-error'
+     Exit with error status 2 if any remaining input is detected after
+     decompressing the last member. Such remaining input is usually
+     trailing garbage that can be safely ignored.
+
+'-b BYTES'
+'--member-size=BYTES'
+     When compressing, set the member size limit to BYTES. A small
+     member size may degrade compression ratio, so use it only when
+     needed.  Valid values range from 100 kB to 2 PiB. Defaults to
+     2 PiB.
+
+'-c'
+'--stdout'
+     Compress or decompress to standard output; keep input files
+     unchanged.  If compressing several files, each file is compressed
+     independently.  This option is needed when reading from a named
+     pipe (fifo) or from a device. Use it also to recover as much of
+     the decompressed data as possible when decompressing a corrupt
+     file.
+
+'-d'
+'--decompress'
+     Decompress the specified files. If a file does not exist or can't
+     be opened, minilzip continues decompressing the rest of the files.
+     If a file fails to decompress, or is a terminal, minilzip exits
+     immediately without decompressing the rest of the files.
+
+'-f'
+'--force'
+     Force overwrite of output files.
+
+'-F'
+'--recompress'
+     When compressing, force re-compression of files whose name already
+     has the '.lz' or '.tlz' suffix.
+
+'-k'
+'--keep'
+     Keep (don't delete) input files during compression or
+     decompression.
+
+'-m BYTES'
+'--match-length=BYTES'
+     When compressing, set the match length limit in bytes. After a
+     match this long is found, the search is finished. Valid values
+     range from 5 to 273. Larger values usually give better compression
+     ratios but longer compression times.
+
+'-o FILE'
+'--output=FILE'
+     When reading from standard input and '--stdout' has not been
+     specified, use 'FILE' as the virtual name of the uncompressed
+     file. This produces a file named 'FILE' when decompressing, or a
+     file named 'FILE.lz' when compressing. A second '.lz' extension is
+     not added if 'FILE' already ends in '.lz' or '.tlz'. When
+     compressing and splitting the output in volumes, several files
+     named 'FILE00001.lz', 'FILE00002.lz', etc, are created.
+
+'-q'
+'--quiet'
+     Quiet operation. Suppress all messages.
+
+'-s BYTES'
+'--dictionary-size=BYTES'
+     When compressing, set the dictionary size limit in bytes. Minilzip
+     will use the smallest possible dictionary size for each file
+     without exceeding this limit. Valid values range from 4 KiB to
+     512 MiB. Values 12 to 29 are interpreted as powers of two, meaning
+     2^12 to 2^29 bytes. Note that dictionary sizes are quantized. If
+     the specified size does not match one of the valid sizes, it will
+     be rounded upwards by adding up to (BYTES / 8) to it.
+
+     For maximum compression you should use a dictionary size limit as
+     large as possible, but keep in mind that the decompression memory
+     requirement is affected at compression time by the choice of
+     dictionary size limit.
+
+'-S BYTES'
+'--volume-size=BYTES'
+     When compressing, split the compressed output into several volume
+     files with names 'original_name00001.lz', 'original_name00002.lz',
+     etc, and set the volume size limit to BYTES. Input files are kept
+     unchanged. Each volume is a complete, maybe multimember, lzip
+     file. A small volume size may degrade compression ratio, so use it
+     only when needed. Valid values range from 100 kB to 4 EiB.
+
+'-t'
+'--test'
+     Check integrity of the specified files, but don't decompress them.
+     This really performs a trial decompression and throws away the
+     result. Use it together with '-v' to see information about the
+     files. If a file fails the test, does not exist, can't be opened,
+     or is a terminal, minilzip continues checking the rest of the
+     files. A final diagnostic is shown at verbosity level 1 or higher
+     if any file fails the test when testing multiple files.
+
+'-v'
+'--verbose'
+     Verbose mode.
+     When compressing, show the compression ratio and size for each file
+     processed.
+     When decompressing or testing, further -v's (up to 4) increase the
+     verbosity level, showing status, compression ratio, dictionary
+     size, and trailer contents (CRC, data size, member size).
+
+'-0 .. -9'
+     Set the compression parameters (dictionary size and match length
+     limit) as shown in the table below. The default compression level
+     is '-6'.  Note that '-9' can be much slower than '-0'. These
+     options have no effect when decompressing or testing.
+
+     The bidimensional parameter space of LZMA can't be mapped to a
+     linear scale optimal for all files. If your files are large, very
+     repetitive, etc, you may need to use the '--dictionary-size' and
+     '--match-length' options directly to achieve optimal performance.
+
+     Level   Dictionary size   Match length limit
+     -0      64 KiB            16 bytes
+     -1      1 MiB             5 bytes
+     -2      1.5 MiB           6 bytes
+     -3      2 MiB             8 bytes
+     -4      3 MiB             12 bytes
+     -5      4 MiB             20 bytes
+     -6      8 MiB             36 bytes
+     -7      16 MiB            68 bytes
+     -8      24 MiB            132 bytes
+     -9      32 MiB            273 bytes
+
+'--fast'
+'--best'
+     Aliases for GNU gzip compatibility.
+
+'--loose-trailing'
+     When decompressing or testing, allow trailing data whose first
+     bytes are so similar to the magic bytes of a lzip header that they
+     can be confused with a corrupt header. Use this option if a file
+     triggers a "corrupt header" error and the cause is not indeed a
+     corrupt header.
+
+
+   Numbers given as arguments to options may be followed by a multiplier
+and an optional 'B' for "byte".
+
+   Table of SI and binary prefixes (unit multipliers):
+
+Prefix   Value                     |   Prefix   Value
+k        kilobyte  (10^3 = 1000)   |   Ki       kibibyte (2^10 = 1024)
+M        megabyte  (10^6)          |   Mi       mebibyte (2^20)
+G        gigabyte  (10^9)          |   Gi       gibibyte (2^30)
+T        terabyte  (10^12)         |   Ti       tebibyte (2^40)
+P        petabyte  (10^15)         |   Pi       pebibyte (2^50)
+E        exabyte   (10^18)         |   Ei       exbibyte (2^60)
+Z        zettabyte (10^21)         |   Zi       zebibyte (2^70)
+Y        yottabyte (10^24)         |   Yi       yobibyte (2^80)
+
+
+   Exit status: 0 for a normal exit, 1 for environmental problems (file
+not found, invalid flags, I/O errors, etc), 2 to indicate a corrupt or
+invalid input file, 3 for an internal consistency error (eg, bug) which
+caused minilzip to panic.
+
+
+File: lzlib.info,  Node: Data format,  Next: Examples,  Prev: Invoking minilzip,  Up: Top
+
+10 Data format
+**************
 
 Perfection is reached, not when there is no longer anything to add, but
 when there is no longer anything to take away.
@@ -578,9 +774,9 @@ when there is no longer anything to take away.
    represents a variable number of bytes.
 
 
-   A lzip data stream consists of a series of "members" (compressed data
-sets). The members simply appear one after another in the data stream,
-with no additional information before, between, or after them.
+   A lzip data stream consists of a series of "members" (compressed
+data sets).  The members simply appear one after another in the data
+stream, with no additional information before, between, or after them.
 
    Each member has the following structure:
 +--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -630,7 +826,7 @@ with no additional information before, between, or after them.
 
 File: lzlib.info,  Node: Examples,  Next: Problems,  Prev: Data format,  Up: Top
 
-10 A small tutorial with examples
+11 A small tutorial with examples
 *********************************
 
 This chapter shows the order in which the library functions should be
@@ -709,15 +905,15 @@ Example 5: Multimember compression (MEMBER_SIZE < total output).
 
 Example 6: Multimember compression (user-restarted members).
 
-      1) LZ_compress_open
+      1) LZ_compress_open       (with MEMBER_SIZE > largest member).
       2) LZ_compress_write
       3) LZ_compress_read
       4) go back to step 2 until member termination is desired
       5) LZ_compress_finish
       6) LZ_compress_read
       7) go back to step 6 until LZ_compress_member_finished returns 1
-      8) verify that LZ_compress_finished returns 1
-      9) go to step 12 if all input data have been written
+      9) go to step 12 if all input data have been written and
+         LZ_compress_finished returns 1
      10) LZ_compress_restart_member
      11) go back to step 2
      12) LZ_compress_close
@@ -750,7 +946,7 @@ next member in case of data error.
 
 File: lzlib.info,  Node: Problems,  Next: Concept index,  Prev: Examples,  Up: Top
 
-11 Reporting bugs
+12 Reporting bugs
 *****************
 
 There are probably bugs in lzlib. There are certainly errors and
@@ -783,25 +979,29 @@ Concept index
 * examples:                              Examples.              (line 6)
 * getting help:                          Problems.              (line 6)
 * introduction:                          Introduction.          (line 6)
+* invoking:                              Invoking minilzip.     (line 6)
 * library version:                       Library version.       (line 6)
+* options:                               Invoking minilzip.     (line 6)
 * parameter limits:                      Parameter limits.      (line 6)
 
 
 
 Tag Table:
 Node: Top220
-Node: Introduction1303
-Node: Library version6115
-Node: Buffering6760
-Node: Parameter limits7980
-Node: Compression functions8939
-Node: Decompression functions15481
-Node: Error codes21651
-Node: Error messages23626
-Node: Data format24205
-Node: Examples26770
-Node: Problems30851
-Node: Concept index31423
+Node: Introduction1342
+Node: Library version6154
+Node: Buffering6799
+Node: Parameter limits8024
+Node: Compression functions8983
+Node: Decompression functions15592
+Node: Error codes21762
+Node: Error messages24064
+Node: Invoking minilzip24649
+Ref: --trailing-error25243
+Node: Data format31883
+Node: Examples34454
+Node: Problems38570
+Node: Concept index39142
 
 End Tag Table
 
