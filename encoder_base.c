@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2018 Antonio Diaz Diaz.
+    Copyright (C) 2009-2019 Antonio Diaz Diaz.
 
     This library is free software. Redistribution and use in source and
     binary forms, with or without modification, are permitted provided
@@ -24,7 +24,8 @@ static bool Mb_normalize_pos( struct Matchfinder_base * const mb )
   if( !mb->at_stream_end )
     {
     int i;
-    const int offset = mb->pos - mb->before_size - mb->dictionary_size;
+    /* offset is int32_t for the min below */
+    const int32_t offset = mb->pos - mb->before_size - mb->dictionary_size;
     const int size = mb->stream_pos - offset;
     memmove( mb->buffer, mb->buffer + offset, size );
     mb->partial_data_pos += offset;
@@ -131,19 +132,19 @@ static void LZeb_try_full_flush( struct LZ_encoder_base * const eb )
   int i;
   const int pos_state = Mb_data_position( &eb->mb ) & pos_state_mask;
   const State state = eb->state;
-  File_trailer trailer;
+  Lzip_trailer trailer;
   if( eb->member_finished ||
-      Cb_free_bytes( &eb->renc.cb ) < max_marker_size + eb->renc.ff_count + Ft_size )
+      Cb_free_bytes( &eb->renc.cb ) < max_marker_size + eb->renc.ff_count + Lt_size )
     return;
   eb->member_finished = true;
   Re_encode_bit( &eb->renc, &eb->bm_match[state][pos_state], 1 );
   Re_encode_bit( &eb->renc, &eb->bm_rep[state], 0 );
   LZeb_encode_pair( eb, 0xFFFFFFFFU, min_match_len, pos_state );
   Re_flush( &eb->renc );
-  Ft_set_data_crc( trailer, LZeb_crc( eb ) );
-  Ft_set_data_size( trailer, Mb_data_position( &eb->mb ) );
-  Ft_set_member_size( trailer, Re_member_position( &eb->renc ) + Ft_size );
-  for( i = 0; i < Ft_size; ++i )
+  Lt_set_data_crc( trailer, LZeb_crc( eb ) );
+  Lt_set_data_size( trailer, Mb_data_position( &eb->mb ) );
+  Lt_set_member_size( trailer, Re_member_position( &eb->renc ) + Lt_size );
+  for( i = 0; i < Lt_size; ++i )
     Cb_put_byte( &eb->renc.cb, trailer[i] );
   }
 
@@ -173,7 +174,8 @@ static void LZeb_reset( struct LZ_encoder_base * const eb,
   {
   int i;
   Mb_reset( &eb->mb );
-  eb->member_size_limit = member_size - Ft_size - max_marker_size;
+  eb->member_size_limit =
+    min( member_size, 0x0008000000000000ULL ) - Lt_size - max_marker_size;
   eb->crc = 0xFFFFFFFFU;
   Bm_array_init( eb->bm_literal[0], (1 << literal_context_bits) * 0x300 );
   Bm_array_init( eb->bm_match[0], states * pos_states );

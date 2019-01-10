@@ -1,5 +1,5 @@
 /*  Lzlib - Compression library for the lzip format
-    Copyright (C) 2009-2018 Antonio Diaz Diaz.
+    Copyright (C) 2009-2019 Antonio Diaz Diaz.
 
     This library is free software. Redistribution and use in source and
     binary forms, with or without modification, are permitted provided
@@ -322,7 +322,7 @@ struct Range_encoder
   uint32_t range;
   unsigned ff_count;
   uint8_t cache;
-  File_header header;
+  Lzip_header header;
   };
 
 static inline void Re_shift_low( struct Range_encoder * const renc )
@@ -349,8 +349,8 @@ static inline void Re_reset( struct Range_encoder * const renc,
   renc->range = 0xFFFFFFFFU;
   renc->ff_count = 0;
   renc->cache = 0;
-  Fh_set_dictionary_size( renc->header, dictionary_size );
-  for( i = 0; i < Fh_size; ++i )
+  Lh_set_dictionary_size( renc->header, dictionary_size );
+  for( i = 0; i < Lh_size; ++i )
     Cb_put_byte( &renc->cb, renc->header[i] );
   }
 
@@ -360,7 +360,7 @@ static inline bool Re_init( struct Range_encoder * const renc,
   {
   if( !Cb_init( &renc->cb, 65536 + min_free_bytes ) ) return false;
   renc->min_free_bytes = min_free_bytes;
-  Fh_set_magic( renc->header );
+  Lh_set_magic( renc->header );
   Re_reset( renc, dictionary_size );
   return true;
   }
