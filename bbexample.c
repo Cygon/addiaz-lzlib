@@ -1,5 +1,5 @@
 /* Buffer to buffer example - Test program for the library lzlib
-   Copyright (C) 2010-2022 Antonio Diaz Diaz.
+   Copyright (C) 2010-2024 Antonio Diaz Diaz.
 
    This program is free software: you have unlimited permission
    to copy, distribute, and modify it.
@@ -38,7 +38,7 @@ uint8_t * read_file( const char * const name, long * const file_sizep )
   uint8_t * buffer, * tmp;
   FILE * const f = fopen( name, "rb" );
   if( !f )
-    { fprintf( stderr, "bbexample: Can't open input file '%s': %s\n",
+    { fprintf( stderr, "bbexample: %s: Can't open input file: %s\n",
                name, strerror( errno ) ); return 0; }
 
   buffer = (uint8_t *)malloc( buffer_size );
@@ -50,7 +50,7 @@ uint8_t * read_file( const char * const name, long * const file_sizep )
     {
     if( buffer_size >= LONG_MAX )
       {
-      fprintf( stderr, "bbexample: Input file '%s' is too large.\n", name );
+      fprintf( stderr, "bbexample: %s: Input file is too large.\n", name );
       free( buffer ); fclose( f ); return 0;
       }
     buffer_size = ( buffer_size <= LONG_MAX / 2 ) ? 2 * buffer_size : LONG_MAX;
@@ -63,7 +63,7 @@ uint8_t * read_file( const char * const name, long * const file_sizep )
     }
   if( ferror( f ) || !feof( f ) )
     {
-    fprintf( stderr, "bbexample: Error reading file '%s': %s\n",
+    fprintf( stderr, "bbexample: %s: Error reading file: %s\n",
              name, strerror( errno ) );
     free( buffer ); fclose( f ); return 0;
     }
@@ -86,8 +86,8 @@ uint8_t * bbcompressl( const uint8_t * const inbuf, const long insize,
     int dictionary_size;		/* 4 KiB .. 512 MiB */
     int match_len_limit;		/* 5 .. 273 */
     };
-  /* Mapping from gzip/bzip2 style 1..9 compression modes
-     to the corresponding LZMA compression modes. */
+  /* Mapping from gzip/bzip2 style 0..9 compression levels to the
+     corresponding LZMA compression parameters. */
   const struct Lzma_options option_mapping[] =
     {
     {   65535,  16 },		/* -0 (65535,16 chooses fast encoder) */

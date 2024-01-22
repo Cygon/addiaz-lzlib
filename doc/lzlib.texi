@@ -6,8 +6,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 23 January 2022
-@set VERSION 1.13
+@set UPDATED 20 January 2024
+@set VERSION 1.14
 
 @dircategory Compression
 @direntry
@@ -44,7 +44,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 * Decompression functions::  Descriptions of the decompression functions
 * Error codes::              Meaning of codes returned by functions
 * Error messages::           Error messages corresponding to error codes
-* Invoking minilzip::        Command line interface of the test program
+* Invoking minilzip::        Command-line interface of the test program
 * Data format::              Detailed format of the compressed data
 * Examples::                 A small tutorial with examples
 * Problems::                 Reporting bugs
@@ -52,7 +52,7 @@ This manual is for Lzlib (version @value{VERSION}, @value{UPDATED}).
 @end menu
 
 @sp 1
-Copyright @copyright{} 2009-2022 Antonio Diaz Diaz.
+Copyright @copyright{} 2009-2024 Antonio Diaz Diaz.
 
 This manual is free documentation: you have unlimited permission to copy,
 distribute, and modify it.
@@ -107,6 +107,13 @@ are declared in the file @samp{lzlib.h}. Usage examples of the library are
 given in the files @samp{bbexample.c}, @samp{ffexample.c}, and
 @samp{minilzip.c} from the source distribution.
 
+As @samp{lzlib.h} can be used by C and C++ programs, it must not impose a
+choice of system headers on the program by including one of them. Therefore
+it is the responsibility of the program using lzlib to include before
+@samp{lzlib.h} some header that declares the type @samp{uint8_t}. There are
+at least four such headers in C and C++: @samp{stdint.h}, @samp{cstdint},
+@samp{inttypes.h}, and @samp{cinttypes}.
+
 All the library functions are thread safe. The library does not install any
 signal handler. The decoder checks the consistency of the compressed data,
 so the library should never crash even in case of corrupted input.
@@ -117,19 +124,19 @@ This interface is safer and less error prone than the traditional zlib
 interface.
 
 Compression/decompression is done when the read function is called. This
-means the value returned by the position functions will not be updated until
-a read call, even if a lot of data are written. If you want the data to be
+means the value returned by the position functions is not updated until a
+read call, even if a lot of data are written. If you want the data to be
 compressed in advance, just call the read function with a @var{size} equal
 to 0.
 
-If all the data to be compressed are written in advance, lzlib will
-automatically adjust the header of the compressed data to use the largest
-dictionary size that does not exceed neither the data size nor the limit
-given to @samp{LZ_compress_open}. This feature reduces the amount of memory
-needed for decompression and allows minilzip to produce identical compressed
-output as lzip.
+If all the data to be compressed are written in advance, lzlib automatically
+adjusts the header of the compressed data to use the largest dictionary size
+that does not exceed neither the data size nor the limit given to
+@samp{LZ_compress_open}. This feature reduces the amount of memory needed for
+decompression and allows minilzip to produce identical compressed output as
+lzip.
 
-Lzlib will correctly decompress a data stream which is the concatenation of
+Lzlib correctly decompresses a data stream which is the concatenation of
 two or more compressed data streams. The result is the concatenation of the
 corresponding decompressed data streams. Integrity testing of concatenated
 compressed data streams is also supported.
@@ -140,24 +147,24 @@ about @w{2 PiB} each.
 
 In spite of its name (Lempel-Ziv-Markov chain-Algorithm), LZMA is not a
 concrete algorithm; it is more like "any algorithm using the LZMA coding
-scheme". For example, the option @samp{-0} of lzip uses the scheme in almost the
-simplest way possible; issuing the longest match it can find, or a literal
-byte if it can't find a match. Inversely, a much more elaborated way of
-finding coding sequences of minimum size than the one currently used by lzip
-could be developed, and the resulting sequence could also be coded using the
-LZMA coding scheme.
+scheme". For example, the option @option{-0} of lzip uses the scheme in
+almost the simplest way possible; issuing the longest match it can find, or
+a literal byte if it can't find a match. Inversely, a much more elaborated
+way of finding coding sequences of minimum size than the one currently used
+by lzip could be developed, and the resulting sequence could also be coded
+using the LZMA coding scheme.
 
 Lzlib currently implements two variants of the LZMA algorithm: fast (used by
-option @samp{-0} of minilzip) and normal (used by all other compression levels).
+option @option{-0} of minilzip) and normal (used by all other compression levels).
 
 The high compression of LZMA comes from combining two basic, well-proven
-compression ideas: sliding dictionaries (LZ77/78) and markov models (the
-thing used by every compression algorithm that uses a range encoder or
-similar order-0 entropy coder as its last stage) with segregation of
-contexts according to what the bits are used for.
+compression ideas: sliding dictionaries (LZ77) and markov models (the thing
+used by every compression algorithm that uses a range encoder or similar
+order-0 entropy coder as its last stage) with segregation of contexts
+according to what the bits are used for.
 
 The ideas embodied in lzlib are due to (at least) the following people:
-Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrey Markov (for the
+Abraham Lempel and Jacob Ziv (for the LZ algorithm), Andrei Markov (for the
 definition of Markov chains), G.N.N. Martin (for the definition of range
 encoding), Igor Pavlov (for putting all the above together in LZMA), and
 Julian Seward (for bzip2's CLI).
@@ -180,7 +187,7 @@ of them are declared in @samp{lzlib.h}.
 
 @defvr Constant LZ_API_VERSION
 This constant is defined in @samp{lzlib.h} and works as a version test
-macro. The application should verify at compile time that LZ_API_VERSION is
+macro. The application should check at compile time that LZ_API_VERSION is
 greater than or equal to the version required by the application:
 
 @example
@@ -202,12 +209,12 @@ certain symbols and prototypes exposed.
 @deftypefun int LZ_api_version ( void )
 If LZ_API_VERSION >= 1012, this function is declared in @samp{lzlib.h} (else
 it doesn't exist). It returns the LZ_API_VERSION of the library object code
-being used. The application should verify at run time that the value
+being used. The application should check at run time that the value
 returned by @code{LZ_api_version} is greater than or equal to the version
-required by the application. An application may be dinamically linked at run
+required by the application. An application may be dynamically linked at run
 time with a different version of lzlib than the one it was compiled for, and
-this should not break the program as long as the library used provides the
-functionality required by the application.
+this should not break the application as long as the library used provides
+the functionality required by the application.
 
 @example
 #if defined LZ_API_VERSION && LZ_API_VERSION >= 1012
@@ -297,7 +304,7 @@ Returns the largest valid match length limit [273].
 
 These are the functions used to compress data. In case of error, all of
 them return -1 or 0, for signed and unsigned return values respectively,
-except @samp{LZ_compress_open} whose return value must be verified by
+except @samp{LZ_compress_open} whose return value must be checked by
 calling @samp{LZ_compress_errno} before using it.
 
 
@@ -307,15 +314,15 @@ pointer that can only be used as the @var{encoder} argument for the
 other LZ_compress functions, or a null pointer if the encoder could not
 be allocated.
 
-The returned pointer must be verified by calling
-@samp{LZ_compress_errno} before using it. If @samp{LZ_compress_errno}
-does not return @samp{LZ_ok}, the returned pointer must not be used and
-should be freed with @samp{LZ_compress_close} to avoid memory leaks.
+The returned pointer must be checked by calling @samp{LZ_compress_errno}
+before using it. If @samp{LZ_compress_errno} does not return @samp{LZ_ok},
+the returned pointer must not be used and should be freed with
+@samp{LZ_compress_close} to avoid memory leaks.
 
 @var{dictionary_size} sets the dictionary size to be used, in bytes.
 Valid values range from @w{4 KiB} to @w{512 MiB}. Note that dictionary
 sizes are quantized. If the size specified does not match one of the
-valid sizes, it will be rounded upwards by adding up to
+valid sizes, it is rounded upwards by adding up to
 @w{(@var{dictionary_size} / 8)} to it.
 
 @var{match_len_limit} sets the match length limit in bytes. Valid values
@@ -324,7 +331,7 @@ but longer compression times.
 
 If @var{dictionary_size} is 65535 and @var{match_len_limit} is 16, the fast
 variant of LZMA is chosen, which produces identical compressed output as
-@w{@samp{lzip -0}}. (The dictionary size used will be rounded upwards to
+@w{@samp{lzip -0}}. (The dictionary size used is rounded upwards to
 @w{64 KiB}).
 
 @anchor{member_size}
@@ -332,8 +339,8 @@ variant of LZMA is chosen, which produces identical compressed output as
 from @w{4 KiB} to @w{2 PiB}. A small member size may degrade compression
 ratio, so use it only when needed. To produce a single-member data stream,
 give @var{member_size} a value larger than the amount of data to be
-produced. Values larger than @w{2 PiB} will be reduced to @w{2 PiB} to
-prevent the uncompressed size of the member from overflowing.
+produced. Values larger than @w{2 PiB} are reduced to @w{2 PiB} to prevent
+the uncompressed size of the member from overflowing.
 @end deftypefun
 
 
@@ -478,20 +485,19 @@ perhaps not yet read.
 
 These are the functions used to decompress data. In case of error, all of
 them return -1 or 0, for signed and unsigned return values respectively,
-except @samp{LZ_decompress_open} whose return value must be verified by
+except @samp{LZ_decompress_open} whose return value must be checked by
 calling @samp{LZ_decompress_errno} before using it.
 
 
 @deftypefun {struct LZ_Decoder *} LZ_decompress_open ( void )
 Initializes the internal stream state for decompression and returns a
-pointer that can only be used as the @var{decoder} argument for the
-other LZ_decompress functions, or a null pointer if the decoder could
-not be allocated.
+pointer that can only be used as the @var{decoder} argument for the other
+LZ_decompress functions, or a null pointer if the decoder could not be
+allocated.
 
-The returned pointer must be verified by calling
-@samp{LZ_decompress_errno} before using it. If
-@samp{LZ_decompress_errno} does not return @samp{LZ_ok}, the returned
-pointer must not be used and should be freed with
+The returned pointer must be checked by calling @samp{LZ_decompress_errno}
+before using it. If @samp{LZ_decompress_errno} does not return @samp{LZ_ok},
+the returned pointer must not be used and should be freed with
 @samp{LZ_decompress_close} to avoid memory leaks.
 @end deftypefun
 
@@ -523,16 +529,16 @@ internal buffers is discarded. Position counters are set to 0.
 
 
 @deftypefun int LZ_decompress_sync_to_member ( struct LZ_Decoder * const @var{decoder} )
-Resets the error state of @var{decoder} and enters a search state that
-lasts until a new member header (or the end of the stream) is found.
-After a successful call to @samp{LZ_decompress_sync_to_member}, data
-written with @samp{LZ_decompress_write} will be consumed and
-@samp{LZ_decompress_read} will return 0 until a header is found.
+Resets the error state of @var{decoder} and enters a search state that lasts
+until a new member header (or the end of the stream) is found. After a
+successful call to @samp{LZ_decompress_sync_to_member}, data written with
+@samp{LZ_decompress_write} is consumed and @samp{LZ_decompress_read} returns
+0 until a header is found.
 
-This function is useful to discard any data preceding the first member,
-or to discard the rest of the current member, for example in case of a
-data error. If the decoder is already at the beginning of a member, this
-function does nothing.
+This function is useful to discard any data preceding the first member, or
+to discard the rest of the current member, for example in case of a data
+error. If the decoder is already at the beginning of a member, this function
+does nothing.
 @end deftypefun
 
 
@@ -654,7 +660,7 @@ perhaps not yet read.
 
 Most library functions return -1 to indicate that they have failed. But
 this return value only tells you that an error has occurred. To find out
-what kind of error it was, you need to verify the error code by calling
+what kind of error it was, you need to check the error code by calling
 @samp{LZ_(de)compress_errno}.
 
 Library functions don't change the value returned by
@@ -728,20 +734,21 @@ The value of @var{lz_errno} normally comes from a call to
 @cindex invoking
 @cindex options
 
-Minilzip is a test program for the compression library lzlib, fully
-compatible with lzip 1.4 or newer.
+Minilzip is a test program for the compression library lzlib, compatible
+with lzip 1.4 or newer.
 
 @uref{http://www.nongnu.org/lzip/lzip.html,,Lzip}
 is a lossless data compressor with a user interface similar to the one
 of gzip or bzip2. Lzip uses a simplified form of the 'Lempel-Ziv-Markov
-chain-Algorithm' (LZMA) stream format and provides a 3 factor integrity
-checking to maximize interoperability and optimize safety. Lzip can compress
-about as fast as gzip @w{(lzip -0)} or compress most files more than bzip2
-@w{(lzip -9)}. Decompression speed is intermediate between gzip and bzip2.
-Lzip is better than gzip and bzip2 from a data recovery perspective. Lzip
-has been designed, written, and tested with great care to replace gzip and
-bzip2 as the standard general-purpose compressed format for unix-like
-systems.
+chain-Algorithm' (LZMA) stream format to maximize interoperability. The
+maximum dictionary size is 512 MiB so that any lzip file can be decompressed
+on 32-bit machines. Lzip provides accurate and robust 3-factor integrity
+checking. Lzip can compress about as fast as gzip @w{(lzip -0)} or compress most
+files more than bzip2 @w{(lzip -9)}. Decompression speed is intermediate between
+gzip and bzip2. Lzip is better than gzip and bzip2 from a data recovery
+perspective. Lzip has been designed, written, and tested with great care to
+replace gzip and bzip2 as the standard general-purpose compressed format for
+Unix-like systems.
 
 @noindent
 The format for running minilzip is:
@@ -754,7 +761,8 @@ minilzip [@var{options}] [@var{files}]
 If no file names are specified, minilzip compresses (or decompresses) from
 standard input to standard output. A hyphen @samp{-} used as a @var{file}
 argument means standard input. It can be mixed with other @var{files} and is
-read just once, the first time it appears in the command line.
+read just once, the first time it appears in the command line. Remember to
+prepend @file{./} to any file name beginning with a hyphen, or use @samp{--}.
 
 minilzip supports the following
 @uref{http://www.nongnu.org/arg-parser/manual/arg_parser_manual.html#Argument-syntax,,options}:
@@ -791,19 +799,20 @@ compression ratio, so use it only when needed. Valid values range from
 Compress or decompress to standard output; keep input files unchanged. If
 compressing several files, each file is compressed independently. (The
 output consists of a sequence of independently compressed members). This
-option (or @samp{-o}) is needed when reading from a named pipe (fifo) or
+option (or @option{-o}) is needed when reading from a named pipe (fifo) or
 from a device. Use it also to recover as much of the decompressed data as
-possible when decompressing a corrupt file. @samp{-c} overrides @samp{-o}
-and @samp{-S}. @samp{-c} has no effect when testing or listing.
+possible when decompressing a corrupt file. @option{-c} overrides @option{-o}
+and @option{-S}. @option{-c} has no effect when testing.
 
 @item -d
 @itemx --decompress
-Decompress the files specified. If a file does not exist, can't be opened,
-or the destination file already exists and @samp{--force} has not been
-specified, minilzip continues decompressing the rest of the files and exits with
-error status 1. If a file fails to decompress, or is a terminal, minilzip exits
-immediately with error status 2 without decompressing the rest of the files.
-A terminal is considered an uncompressed file, and therefore invalid.
+Decompress the files specified. The integrity of the files specified is
+checked. If a file does not exist, can't be opened, or the destination file
+already exists and @option{--force} has not been specified, minilzip continues
+decompressing the rest of the files and exits with error status 1. If a file
+fails to decompress, or is a terminal, minilzip exits immediately with error
+status 2 without decompressing the rest of the files. A terminal is
+considered an uncompressed file, and therefore invalid.
 
 @item -f
 @itemx --force
@@ -820,19 +829,19 @@ Keep (don't delete) input files during compression or decompression.
 
 @item -m @var{bytes}
 @itemx --match-length=@var{bytes}
-When compressing, set the match length limit in bytes. After a match
-this long is found, the search is finished. Valid values range from 5 to
-273. Larger values usually give better compression ratios but longer
-compression times.
+When compressing, set the match length limit in bytes. After a match this
+long is found, the search is finished. Valid values range from 5 to 273.
+Larger values usually give better compression ratios but longer compression
+times.
 
 @item -o @var{file}
 @itemx --output=@var{file}
-If @samp{-c} has not been also specified, write the (de)compressed output to
-@var{file}; keep input files unchanged. If compressing several files, each
-file is compressed independently. (The output consists of a sequence of
-independently compressed members). This option (or @samp{-c}) is needed when
-reading from a named pipe (fifo) or from a device. @w{@samp{-o -}} is
-equivalent to @samp{-c}. @samp{-o} has no effect when testing or listing.
+If @option{-c} has not been also specified, write the (de)compressed output
+to @var{file}; keep input files unchanged. If compressing several files,
+each file is compressed independently. (The output consists of a sequence of
+independently compressed members). This option (or @option{-c}) is needed
+when reading from a named pipe (fifo) or from a device. @w{@option{-o -}} is
+equivalent to @option{-c}. @option{-o} has no effect when testing.
 
 When compressing and splitting the output in volumes, @var{file} is used as
 a prefix, and several files named @samp{@var{file}00001.lz},
@@ -845,14 +854,14 @@ Quiet operation. Suppress all messages.
 
 @item -s @var{bytes}
 @itemx --dictionary-size=@var{bytes}
-When compressing, set the dictionary size limit in bytes. Minilzip will use
-for each file the largest dictionary size that does not exceed neither
-the file size nor this limit. Valid values range from @w{4 KiB} to
-@w{512 MiB}. Values 12 to 29 are interpreted as powers of two, meaning
-2^12 to 2^29 bytes. Dictionary sizes are quantized so that they can be
-coded in just one byte (@pxref{coded-dict-size}). If the size specified
-does not match one of the valid sizes, it will be rounded upwards by
-adding up to @w{(@var{bytes} / 8)} to it.
+When compressing, set the dictionary size limit in bytes. Minilzip uses for
+each file the largest dictionary size that does not exceed neither the file
+size nor this limit. Valid values range from @w{4 KiB} to @w{512 MiB}.
+Values 12 to 29 are interpreted as powers of two, meaning 2^12 to 2^29
+bytes. Dictionary sizes are quantized so that they can be coded in just one
+byte (@pxref{coded-dict-size}). If the size specified does not match one of
+the valid sizes, it is rounded upwards by adding up to @w{(@var{bytes} / 8)}
+to it.
 
 For maximum compression you should use a dictionary size limit as large
 as possible, but keep in mind that the decompression memory requirement
@@ -860,7 +869,7 @@ is affected at compression time by the choice of dictionary size limit.
 
 @item -S @var{bytes}
 @itemx --volume-size=@var{bytes}
-When compressing, and @samp{-c} has not been also specified, split the
+When compressing, and @option{-c} has not been also specified, split the
 compressed output into several volume files with names
 @samp{original_name00001.lz}, @samp{original_name00002.lz}, etc, and set the
 volume size limit to @var{bytes}. Input files are kept unchanged. Each
@@ -872,11 +881,11 @@ from @w{100 kB} to @w{4 EiB}.
 @itemx --test
 Check integrity of the files specified, but don't decompress them. This
 really performs a trial decompression and throws away the result. Use it
-together with @samp{-v} to see information about the files. If a file
+together with @option{-v} to see information about the files. If a file
 fails the test, does not exist, can't be opened, or is a terminal, minilzip
-continues checking the rest of the files. A final diagnostic is shown at
-verbosity level 1 or higher if any file fails the test when testing
-multiple files.
+continues testing the rest of the files. A final diagnostic is shown at
+verbosity level 1 or higher if any file fails the test when testing multiple
+files.
 
 @item -v
 @itemx --verbose
@@ -890,18 +899,18 @@ and trailer contents (CRC, data size, member size).
 @item -0 .. -9
 Compression level. Set the compression parameters (dictionary size and
 match length limit) as shown in the table below. The default compression
-level is @samp{-6}, equivalent to @w{@samp{-s8MiB -m36}}. Note that
-@samp{-9} can be much slower than @samp{-0}. These options have no
+level is @option{-6}, equivalent to @w{@option{-s8MiB -m36}}. Note that
+@option{-9} can be much slower than @option{-0}. These options have no
 effect when decompressing or testing.
 
-The bidimensional parameter space of LZMA can't be mapped to a linear
-scale optimal for all files. If your files are large, very repetitive,
-etc, you may need to use the options @samp{--dictionary-size} and
-@samp{--match-length} directly to achieve optimal performance.
+The bidimensional parameter space of LZMA can't be mapped to a linear scale
+optimal for all files. If your files are large, very repetitive, etc, you
+may need to use the options @option{--dictionary-size} and
+@option{--match-length} directly to achieve optimal performance.
 
-If several compression levels or @samp{-s} or @samp{-m} options are
-given, the last setting is used. For example @w{@samp{-9 -s64MiB}} is
-equivalent to @w{@samp{-s64MiB -m273}}
+If several compression levels or @option{-s} or @option{-m} options are
+given, the last setting is used. For example @w{@option{-9 -s64MiB}} is
+equivalent to @w{@option{-s64MiB -m273}}
 
 @multitable {Level} {Dictionary size (-s)} {Match length limit (-m)}
 @item Level @tab Dictionary size (-s) @tab Match length limit (-m)
@@ -942,28 +951,31 @@ version of lzlib being used and the value of LZ_API_VERSION (if defined).
 
 @end table
 
-Numbers given as arguments to options may be followed by a multiplier
-and an optional @samp{B} for "byte".
+Numbers given as arguments to options may be expressed in decimal,
+hexadecimal, or octal (using the same syntax as integer constants in C++),
+and may be followed by a multiplier and an optional @samp{B} for "byte".
 
 Table of SI and binary prefixes (unit multipliers):
 
-@multitable {Prefix} {kilobyte  (10^3 = 1000)} {|} {Prefix} {kibibyte (2^10 = 1024)}
+@multitable {Prefix} {kilobyte   (10^3 = 1000)} {|} {Prefix} {kibibyte  (2^10 = 1024)}
 @item Prefix @tab Value               @tab | @tab Prefix @tab Value
-@item k @tab kilobyte  (10^3 = 1000)  @tab | @tab Ki @tab kibibyte (2^10 = 1024)
-@item M @tab megabyte  (10^6)         @tab | @tab Mi @tab mebibyte (2^20)
-@item G @tab gigabyte  (10^9)         @tab | @tab Gi @tab gibibyte (2^30)
-@item T @tab terabyte  (10^12)        @tab | @tab Ti @tab tebibyte (2^40)
-@item P @tab petabyte  (10^15)        @tab | @tab Pi @tab pebibyte (2^50)
-@item E @tab exabyte   (10^18)        @tab | @tab Ei @tab exbibyte (2^60)
-@item Z @tab zettabyte (10^21)        @tab | @tab Zi @tab zebibyte (2^70)
-@item Y @tab yottabyte (10^24)        @tab | @tab Yi @tab yobibyte (2^80)
+@item k @tab kilobyte   (10^3 = 1000) @tab | @tab Ki @tab kibibyte  (2^10 = 1024)
+@item M @tab megabyte   (10^6)        @tab | @tab Mi @tab mebibyte  (2^20)
+@item G @tab gigabyte   (10^9)        @tab | @tab Gi @tab gibibyte  (2^30)
+@item T @tab terabyte   (10^12)       @tab | @tab Ti @tab tebibyte  (2^40)
+@item P @tab petabyte   (10^15)       @tab | @tab Pi @tab pebibyte  (2^50)
+@item E @tab exabyte    (10^18)       @tab | @tab Ei @tab exbibyte  (2^60)
+@item Z @tab zettabyte  (10^21)       @tab | @tab Zi @tab zebibyte  (2^70)
+@item Y @tab yottabyte  (10^24)       @tab | @tab Yi @tab yobibyte  (2^80)
+@item R @tab ronnabyte  (10^27)       @tab | @tab Ri @tab robibyte  (2^90)
+@item Q @tab quettabyte (10^30)       @tab | @tab Qi @tab quebibyte (2^100)
 @end multitable
 
 @sp 1
-Exit status: 0 for a normal exit, 1 for environmental problems (file not
-found, invalid flags, I/O errors, etc), 2 to indicate a corrupt or invalid
-input file, 3 for an internal consistency error (e.g., bug) which caused
-minilzip to panic.
+Exit status: 0 for a normal exit, 1 for environmental problems
+(file not found, invalid command-line options, I/O errors, etc), 2 to
+indicate a corrupt or invalid input file, 3 for an internal consistency
+error (e.g., bug) which caused minilzip to panic.
 
 
 @node Data format
@@ -994,7 +1006,7 @@ represents one byte; a box like this:
 represents a variable number of bytes.
 
 @sp 1
-Lzip data consist of a series of independent "members" (compressed data
+Lzip data consist of one or more independent "members" (compressed data
 sets). The members simply appear one after another in the data stream, with
 no additional information before, between, or after them. Each member can
 encode in compressed form up to @w{16 EiB - 1 byte} of uncompressed data.
@@ -1050,10 +1062,10 @@ Size of the original uncompressed data.
 
 @item Member size (8 bytes)
 Total size of the member, including header and trailer. This field acts
-as a distributed index, allows the verification of stream integrity, and
+as a distributed index, improves the checking of stream integrity, and
 facilitates the safe recovery of undamaged members from multimember files.
-Member size should be limited to @w{2 PiB} to prevent the data size field
-from overflowing.
+Lzip limits the member size to @w{2 PiB} to prevent the data size field from
+overflowing.
 
 @end table
 
@@ -1360,7 +1372,7 @@ int ffrsdecompress( struct LZ_Decoder * const decoder,
       if( LZ_decompress_errno( decoder ) == LZ_header_error ||
           LZ_decompress_errno( decoder ) == LZ_data_error )
         { LZ_decompress_sync_to_member( decoder ); continue; }
-      else break;
+      break;
       }
     len = fwrite( buffer, 1, ret, outfile );
     if( len < ret ) break;

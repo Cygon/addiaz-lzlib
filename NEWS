@@ -1,15 +1,19 @@
-Changes in version 1.13:
+Changes in version 1.14:
 
-The variables AR and ARFLAGS can now be set from configure. (Before you
-needed to run 'make AR=<ar_command>'. (Reported by Hoël Bézier).
+In minilzip, file diagnostics have been reformatted as 'PROGRAM: FILE: MESSAGE'.
 
-In case of error in a numerical argument to a command line option, minilzip
-now shows the name of the option and the range of valid values.
+In minilzip, diagnostics caused by invalid arguments to command-line options
+now show the argument and the name of the option.
 
-'minilzip --check-lib' now checks that LZ_API_VERSION and LZ_version_string
-match.
+The option '-o, --output' of minilzip now preserves dates, permissions, and
+ownership of the file, when (de)compressing exactly one file.
 
-Several descriptions have been improved in manual, '--help', and man page.
+It has been documented in the manual that it is the responsibility of the
+program using lzlib to include before 'lzlib.h' some header that declares
+the type 'uint8_t'. (Reported by Michal Górny).
 
-The texinfo category of the manual has been changed from 'Data Compression'
-to 'Compression' to match that of gzip. (Reported by Alfred M. Szmidt).
+The variable MAKEINFO has been added to configure and Makefile.in.
+
+It has been documented in INSTALL that when choosing a C standard, the POSIX
+features need to be enabled explicitly:
+  ./configure CFLAGS+='--std=c99 -D_XOPEN_SOURCE=500'

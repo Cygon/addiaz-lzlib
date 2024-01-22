@@ -52,6 +52,10 @@ lzlib_sh.o : lzlib.c
 %.o : %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
+# prevent 'make' from trying to remake source files
+$(VPATH)/configure $(VPATH)/Makefile.in $(VPATH)/doc/$(pkgname).texi : ;
+%.h %.c : ;
+
 lzdeps = lzlib.h lzip.h cbuffer.c decoder.h decoder.c encoder_base.h \
          encoder_base.c encoder.h encoder.c fast_encoder.h fast_encoder.c
 
@@ -64,13 +68,12 @@ bbexample.o   : Makefile lzlib.h
 ffexample.o   : Makefile lzlib.h
 lzcheck.o     : Makefile lzlib.h
 
-
 doc : info man
 
 info : $(VPATH)/doc/$(pkgname).info
 
 $(VPATH)/doc/$(pkgname).info : $(VPATH)/doc/$(pkgname).texi
-	cd $(VPATH)/doc && makeinfo $(pkgname).texi
+	cd $(VPATH)/doc && $(MAKEINFO) $(pkgname).texi
 
 man : $(VPATH)/doc/$(progname).1
 
