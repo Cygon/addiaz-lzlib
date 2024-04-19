@@ -26,7 +26,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>		/* SSIZE_MAX */
+#include <limits.h>		/* CHAR_BIT, SSIZE_MAX */
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>		/* SIZE_MAX */
@@ -117,7 +117,7 @@ static bool delete_output_on_interrupt = false;
 static void show_help( void )
   {
   printf( "Minilzip is a test program for the compression library lzlib, compatible\n"
-          "with lzip 1.4 or newer.\n"
+          "(interoperable) with lzip 1.4 or newer.\n"
           "\nLzip is a lossless data compressor with a user interface similar to the one\n"
           "of gzip or bzip2. Lzip uses a simplified form of the 'Lempel-Ziv-Markov\n"
           "chain-Algorithm' (LZMA) stream format to maximize interoperability. The\n"
@@ -196,10 +196,10 @@ static void show_version( void )
   {
   printf( "%s %s\n", program_name, PROGVERSION );
   printf( "Copyright (C) %s Antonio Diaz Diaz.\n", program_year );
-  show_lzlib_version();
   printf( "License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>\n"
           "This is free software: you are free to change and redistribute it.\n"
           "There is NO WARRANTY, to the extent permitted by law.\n" );
+  show_lzlib_version();
   }
 
 
@@ -293,6 +293,9 @@ static void Pp_init( struct Pretty_print * const pp,
     }
   if( pp->longest_name == 0 ) pp->longest_name = stdin_name_len;
   }
+
+void Pp_free( struct Pretty_print * const pp )
+  { if( pp->padded_name ) { free( pp->padded_name ); pp->padded_name = 0; } }
 
 static void Pp_set_name( struct Pretty_print * const pp,
                          const char * const filename )
@@ -1286,6 +1289,7 @@ int main( const int argc, const char * const argv[] )
              program_name, failed_tests,
              ( failed_tests == 1 ) ? "file" : "files" );
   free( output_filename );
+  Pp_free( &pp );
   free( filenames );
   ap_free( &parser );
   return retval;

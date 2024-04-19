@@ -1,3 +1,12 @@
+2024-04-19  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 1.15-pre1 released.
+	* Makefile.in: New target 'lib' which builds just the library.
+	  New target 'bin' which builds the library and minilzip.
+	  'lib' is now the default; minilzip is no longer built by default.
+	  'install-bin' installs minilzip and its man page again.
+	* INSTALL: Document use of 'make bin'.
+
 2024-01-20  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 1.14 released.
@@ -261,6 +270,5 @@
 
 Copyright (C) 2009-2024 Antonio Diaz Diaz.
 
-This file is a collection of facts, and thus it is not copyrightable,
-but just in case, you have unlimited permission to copy, distribute, and
-modify it.
+This file is a collection of facts, and thus it is not copyrightable, but just
+in case, you have unlimited permission to copy, distribute, and modify it.

@@ -6,8 +6,8 @@
 @finalout
 @c %**end of header
 
-@set UPDATED 20 January 2024
-@set VERSION 1.14
+@set UPDATED 19 April 2024
+@set VERSION 1.15-pre1
 
 @dircategory Compression
 @direntry
@@ -158,7 +158,7 @@ Lzlib currently implements two variants of the LZMA algorithm: fast (used by
 option @option{-0} of minilzip) and normal (used by all other compression levels).
 
 The high compression of LZMA comes from combining two basic, well-proven
-compression ideas: sliding dictionaries (LZ77) and markov models (the thing
+compression ideas: sliding dictionaries (LZ77) and Markov models (the thing
 used by every compression algorithm that uses a range encoder or similar
 order-0 entropy coder as its last stage) with segregation of contexts
 according to what the bits are used for.
@@ -735,7 +735,9 @@ The value of @var{lz_errno} normally comes from a call to
 @cindex options
 
 Minilzip is a test program for the compression library lzlib, compatible
-with lzip 1.4 or newer.
+(interoperable) with lzip 1.4 or newer. Minilzip is not intended to be
+installed because lzip has more features, but minilzip is well tested and
+you can use it as your main compressor if so you wish.
 
 @uref{http://www.nongnu.org/lzip/lzip.html,,Lzip}
 is a lossless data compressor with a user interface similar to the one

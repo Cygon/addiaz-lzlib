@@ -6,14 +6,16 @@
 # to copy, distribute, and modify it.
 
 pkgname=lzlib
-pkgversion=1.14
+pkgversion=1.15-pre1
 soversion=1
+libname=lz
+libname_static=lib${libname}.a
+libname_shared=
 progname=minilzip
 progname_static=${progname}
 progname_shared=
 progname_lzip=${progname}
 disable_ldconfig=
-libname=lz
 srctrigger=doc/${pkgname}.texi
 
 # clear some things potentially inherited from environment.
@@ -115,10 +117,13 @@ while [ $# != 0 ] ; do
 	--mandir=*)            mandir=${optarg} ;;
 	--no-create)              no_create=yes ;;
 	--disable-static)
+		libname_static=
+		libname_shared=lib${libname}.so.${pkgversion}
 		progname_static=
 		progname_shared=${progname}_shared
 		progname_lzip=${progname}_shared ;;
 	--enable-shared)
+		libname_shared=lib${libname}.so.${pkgversion}
 		progname_shared=${progname}_shared
 		progname_lzip=${progname}_shared ;;
 	--disable-ldconfig) disable_ldconfig=yes ;;
@@ -216,12 +221,14 @@ cat > Makefile << EOF
 pkgname = ${pkgname}
 pkgversion = ${pkgversion}
 soversion = ${soversion}
+libname = ${libname}
+libname_static = ${libname_static}
+libname_shared = ${libname_shared}
 progname = ${progname}
 progname_static = ${progname_static}
 progname_shared = ${progname_shared}
 progname_lzip = ${progname_lzip}
 disable_ldconfig = ${disable_ldconfig}
-libname = ${libname}
 VPATH = ${srcdir}
 prefix = ${prefix}
 exec_prefix = ${exec_prefix}

@@ -11,7 +11,7 @@ File: lzlib.info,  Node: Top,  Next: Introduction,  Up: (dir)
 Lzlib Manual
 ************
 
-This manual is for Lzlib (version 1.14, 20 January 2024).
+This manual is for Lzlib (version 1.15-pre1, 19 April 2024).
 
 * Menu:
 
@@ -127,7 +127,7 @@ using the LZMA coding scheme.
 levels).
 
    The high compression of LZMA comes from combining two basic, well-proven
-compression ideas: sliding dictionaries (LZ77) and markov models (the thing
+compression ideas: sliding dictionaries (LZ77) and Markov models (the thing
 used by every compression algorithm that uses a range encoder or similar
 order-0 entropy coder as its last stage) with segregation of contexts
 according to what the bits are used for.
@@ -647,7 +647,9 @@ File: lzlib.info,  Node: Invoking minilzip,  Next: Data format,  Prev: Error mes
 *******************
 
 Minilzip is a test program for the compression library lzlib, compatible
-with lzip 1.4 or newer.
+(interoperable) with lzip 1.4 or newer. Minilzip is not intended to be
+installed because lzip has more features, but minilzip is well tested and
+you can use it as your main compressor if so you wish.
 
    Lzip is a lossless data compressor with a user interface similar to the
 one of gzip or bzip2. Lzip uses a simplified form of the 'Lempel-Ziv-Markov
@@ -1305,28 +1307,28 @@ Concept index
 
 Tag Table:
 Node: Top215
-Node: Introduction1338
-Node: Library version6778
-Node: Buffering9329
-Node: Parameter limits10554
-Node: Compression functions11508
-Ref: member_size13301
-Ref: sync_flush15063
-Node: Decompression functions19751
-Node: Error codes27308
-Node: Error messages29598
-Node: Invoking minilzip30177
-Node: Data format40595
-Ref: coded-dict-size42041
-Node: Examples43446
-Node: Buffer compression44407
-Node: Buffer decompression45927
-Node: File compression47341
-Node: File decompression48324
-Node: File compression mm49328
-Node: Skipping data errors52357
-Node: Problems53662
-Node: Concept index54223
+Node: Introduction1341
+Node: Library version6781
+Node: Buffering9332
+Node: Parameter limits10557
+Node: Compression functions11511
+Ref: member_size13304
+Ref: sync_flush15066
+Node: Decompression functions19754
+Node: Error codes27311
+Node: Error messages29601
+Node: Invoking minilzip30180
+Node: Data format40774
+Ref: coded-dict-size42220
+Node: Examples43625
+Node: Buffer compression44586
+Node: Buffer decompression46106
+Node: File compression47520
+Node: File decompression48503
+Node: File compression mm49507
+Node: Skipping data errors52536
+Node: Problems53841
+Node: Concept index54402
 
 End Tag Table
 

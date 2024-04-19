@@ -40,7 +40,7 @@ static int LZd_decode_member( struct LZ_decoder * const d )
   {
   struct Range_decoder * const rdec = d->rdec;
   State * const state = &d->state;
-  /* unsigned old_mpos = rdec->member_position; */
+  unsigned old_mpos = rdec->member_position;
 
   if( d->member_finished ) return 0;
   if( !Rd_try_reload( rdec ) )
@@ -49,9 +49,9 @@ static int LZd_decode_member( struct LZ_decoder * const d )
 
   while( !Rd_finished( rdec ) )
     {
-    /* const unsigned mpos = rdec->member_position;
+    const unsigned mpos = rdec->member_position;
     if( mpos - old_mpos > rd_min_available_bytes ) return 5;
-    old_mpos = mpos; */
+    old_mpos = mpos;
     if( !Rd_enough_available_bytes( rdec ) )	/* check unexpected EOF */
       { if( !rdec->at_stream_end ) return 0;
         if( Cb_empty( &rdec->cb ) ) break; }	/* decode until EOF */
@@ -116,9 +116,9 @@ static int LZd_decode_member( struct LZ_decoder * const d )
           if( distance == 0xFFFFFFFFU )		/* marker found */
             {
             Rd_normalize( rdec );
-            /* const unsigned mpos = rdec->member_position;
+            const unsigned mpos = rdec->member_position;
             if( mpos - old_mpos > rd_min_available_bytes ) return 5;
-            old_mpos = mpos; */
+            old_mpos = mpos;
             if( len == min_match_len )		/* End Of Stream marker */
               {
               d->check_trailer_pending = true;

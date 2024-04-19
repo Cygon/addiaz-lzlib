@@ -35,9 +35,15 @@ extracted from the archive.
 
 	./configure CFLAGS+='-D __USE_MINGW_ANSI_STDIO'
 
-3. Run make.
+3. Run make
 
 	make
+
+to build the library, or
+
+	make bin
+
+to build also minilzip.
 
 4. Optionally, type 'make check' to run the tests that come with lzlib.
 
@@ -52,9 +58,9 @@ extracted from the archive.
    You can install only the library or the info manual by typing
    'make install-lib' or 'make install-info' respectively.
 
-   'make install-bin install-man' installs the program minilzip and its man
-   page. 'install-bin' installs a shared minilzip if the shared library has
-   been configured. Else it installs a static minilzip.
+   'make install-bin' installs the program minilzip and its man page. It
+   installs a shared minilzip if the shared library has been configured.
+   Else it installs a static minilzip.
    'make install-bin-compress' additionally compresses the man page after
    installation.
 
